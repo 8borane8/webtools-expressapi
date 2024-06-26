@@ -345,7 +345,7 @@ export class HttpServer {
 		}
 
 		if (request.method == "OPTIONS") {
-			return new Response(null, { status: 200 });
+			return res.send("");
 		}
 
 		const route = this.routes.get(req.method)?.find((r) =>
