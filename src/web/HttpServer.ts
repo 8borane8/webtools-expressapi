@@ -107,7 +107,7 @@ export class HttpResponse {
 	 * @param {string} text - The text to send.
 	 * @returns {Response} The response object.
 	 */
-	public send(text: string): Response {
+	public send(text: string | null): Response {
 		return new Response(text, { status: this.code, headers: this.headers });
 	}
 
@@ -118,12 +118,11 @@ export class HttpResponse {
 	 * @returns {Response} The response object.
 	 */
 	public json(object: object): Response {
+		this.setHeader("Content-Type", "application/json");
+
 		return new Response(JSON.stringify(object), {
 			status: this.code,
-			headers: {
-				"Content-Type": "application/json",
-				...this.headers,
-			},
+			headers: this.headers,
 		});
 	}
 
