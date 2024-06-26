@@ -9,7 +9,7 @@ import { CryptoHelper } from "../helpers/CryptoHelper.ts";
  * A class for generating and verifying JSON web tokens.
  * @class JsonToken
  */
-export  class JsonToken {
+export class JsonToken {
 	/**
 	 * Create a new instance of JsonToken.
 	 * @constructor

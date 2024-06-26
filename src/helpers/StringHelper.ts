@@ -7,7 +7,7 @@
  * A class for manipulating strings.
  * @class StringHelper
  */
-export  class StringHelper {
+export class StringHelper {
 	/**
 	 * Escape HTML entities in a string.
 	 * @method escapehtmlEntities

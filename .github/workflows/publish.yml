@@ -16,8 +16,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: denoland/setup-deno@v1
 
-      - name: Run Deno Fmt
-        run: deno fmt
-
-      - name: Publish package
-        run: npx jsr publish
+      - run: deno fmt --check
+      - run: npx jsr publish

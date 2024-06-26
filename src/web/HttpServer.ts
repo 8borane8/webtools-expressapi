@@ -149,7 +149,7 @@ export class HttpResponse {
  * The HttpServer class.
  * @class HttpServer
  */
-export  class HttpServer {
+export class HttpServer {
 	private readonly routes: Map<HttpMethods, Route[]> = new Map(
 		Object.values(HttpMethods).map((value) => [value, []]),
 	);
