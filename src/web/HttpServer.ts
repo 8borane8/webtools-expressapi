@@ -67,7 +67,8 @@ export class HttpRequest {
 		public url: string,
 		public readonly method: HttpMethods,
 		public readonly headers: Headers,
-		public readonly body: string | object | null,
+		// deno-lint-ignore no-explicit-any
+		public readonly body: any,
 	) {}
 }
 
