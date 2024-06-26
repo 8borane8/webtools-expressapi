@@ -351,6 +351,13 @@ export class HttpServer {
 			}
 		});
 
+		for (const middleware of route.middlewares) {
+			const response = await middleware(req, res);
+			if (response instanceof Response) {
+				return response;
+			}
+		}
+
 		return await route.requestListener(req, res) ||
 			await this.endpointNotFoundFunction(req, res) ||
 			HttpServer.EndpointNotFoundFunction(req, res);
