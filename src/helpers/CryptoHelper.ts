@@ -1,6 +1,15 @@
 import { decodeBase64, encodeBase64 } from "@std/encoding";
 import { crypto } from "@std/crypto";
 
+/**
+ * A module containing the CryptoHelper class.
+ * @module CryptoHelper
+ */
+
+/**
+ * A class for cryptographic functions.
+ * @class CryptoHelper
+ */
 export default class CryptoHelper {
 	private static readonly encoder = new TextEncoder();
 	private static readonly decoder = new TextDecoder();

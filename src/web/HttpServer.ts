@@ -1,5 +1,18 @@
 import { contentType } from "@std/media-types";
 
+/**
+ * A simple HTTP server implementation.
+ * @module HttpServer
+ */
+
+/**
+ * @enum {string} HttpMethods - Enum representing the HTTP methods supported by the server.
+ * @property {string} GET - The HTTP GET method.
+ * @property {string} POST - The HTTP POST method.
+ * @property {string} PUT - The HTTP PUT method.
+ * @property {string} PATCH - The HTTP PATCH method.
+ * @property {string} DELETE - The HTTP DELETE method.
+ */
 export enum HttpMethods {
 	GET = "GET",
 	POST = "POST",
@@ -83,6 +96,10 @@ class HttpResponse {
 	}
 }
 
+/**
+ * The HttpServer class.
+ * @class HttpServer
+ */
 export default class HttpServer {
 	private readonly routes: Map<HttpMethods, Route[]> = new Map(
 		Object.values(HttpMethods).map((value) => [value, []]),
@@ -93,6 +110,11 @@ export default class HttpServer {
 	private endpointNotFoundFunction: RequestListener =
 		HttpServer.defaultEndpointNotFoundFunction;
 
+	/**
+	 * Create a new instance of HttpServer.
+	 * @constructor
+	 * @param {number} [port=5050] - The port number to listen on.
+	 */
 	constructor(port = 5050) {
 		Deno.serve({ port }, this.requestListener.bind(this));
 	}

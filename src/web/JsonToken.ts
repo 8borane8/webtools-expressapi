@@ -1,6 +1,20 @@
 import Crypto from "../helpers/CryptoHelper.ts";
 
+/**
+ * A module containing the JsonToken class.
+ * @module JsonToken
+ */
+
+/**
+ * A class for generating and verifying JSON web tokens.
+ * @class JsonToken
+ */
 export default class JsonToken {
+	/**
+	 * Create a new instance of JsonToken.
+	 * @constructor
+	 * @param {string} secret - The secret key used to sign and verify tokens.
+	 */
 	constructor(private readonly secret: string) {}
 
 	/**

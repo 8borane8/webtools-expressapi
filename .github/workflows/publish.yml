@@ -7,6 +7,8 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    container:
+      image: denoland/deno:1.x
 
     permissions:
       contents: read
@@ -14,6 +16,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Run Deno Fmt
+        run: deno fmt
 
       - name: Publish package
         run: npx jsr publish

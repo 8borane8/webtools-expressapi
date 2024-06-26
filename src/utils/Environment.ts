@@ -1,3 +1,12 @@
+/**
+ * A module containing the Environment class.
+ * @module Environment
+ */
+
+/**
+ * A class for managing environment variables.
+ * @class Environment
+ */
 export default class Environment {
 	/**
 	 * Load environment variables from a file.

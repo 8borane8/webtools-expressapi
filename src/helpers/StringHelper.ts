@@ -1,3 +1,12 @@
+/**
+ * A module containing the StringHelper class.
+ * @module StringHelper
+ */
+
+/**
+ * A class for manipulating strings.
+ * @class StringHelper
+ */
 export default class StringHelper {
 	/**
 	 * Escape HTML entities in a string.
