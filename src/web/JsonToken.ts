@@ -1,4 +1,4 @@
-import Crypto from "../helpers/CryptoHelper.ts";
+import { CryptoHelper } from "../helpers/CryptoHelper.ts";
 
 /**
  * A module containing the JsonToken class.
@@ -25,9 +25,9 @@ export  class JsonToken {
 	 */
 	public async sign(jsonPayload: object): Promise<string> {
 		const payload = JSON.stringify(jsonPayload);
-		const b64Payload = Crypto.b64encode(payload).replace(/=+$/, "");
+		const b64Payload = CryptoHelper.b64encode(payload).replace(/=+$/, "");
 
-		const hash = await Crypto.sha256(b64Payload + this.secret);
+		const hash = await CryptoHelper.sha256(b64Payload + this.secret);
 
 		return `${b64Payload}.${hash}`;
 	}
@@ -46,8 +46,8 @@ export  class JsonToken {
 			return null;
 		}
 
-		if (await Crypto.sha256(b64Payload + this.secret) == hash) {
-			const payload = Crypto.b64decode(b64Payload);
+		if (await CryptoHelper.sha256(b64Payload + this.secret) == hash) {
+			const payload = CryptoHelper.b64decode(b64Payload);
 			return JSON.parse(payload);
 		}
 
