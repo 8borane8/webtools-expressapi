@@ -149,7 +149,7 @@ export class HttpResponse {
  * The HttpServer class.
  * @class HttpServer
  */
-export default class HttpServer {
+export  class HttpServer {
 	private readonly routes: Map<HttpMethods, Route[]> = new Map(
 		Object.values(HttpMethods).map((value) => [value, []]),
 	);
@@ -157,7 +157,7 @@ export default class HttpServer {
 	private readonly middlewares: RequestListener[] = [];
 
 	private endpointNotFoundFunction: RequestListener =
-		HttpServer.defaultEndpointNotFoundFunction;
+		HttpServer.EndpointNotFoundFunction;
 
 	/**
 	 * Create a new instance of HttpServer.
@@ -297,7 +297,7 @@ export default class HttpServer {
 		this.endpointNotFoundFunction = endpointNotFoundFunction;
 	}
 
-	private static defaultEndpointNotFoundFunction(
+	private static EndpointNotFoundFunction(
 		_req: HttpRequest,
 		res: HttpResponse,
 	): Response {
@@ -341,7 +341,7 @@ export default class HttpServer {
 
 		if (!route) {
 			return await this.endpointNotFoundFunction(req, res) ||
-				HttpServer.defaultEndpointNotFoundFunction(req, res);
+				HttpServer.EndpointNotFoundFunction(req, res);
 		}
 
 		const urlParts = req.url.split("/");
@@ -353,6 +353,6 @@ export default class HttpServer {
 
 		return await route.requestListener(req, res) ||
 			await this.endpointNotFoundFunction(req, res) ||
-			HttpServer.defaultEndpointNotFoundFunction(req, res);
+			HttpServer.EndpointNotFoundFunction(req, res);
 	}
 }

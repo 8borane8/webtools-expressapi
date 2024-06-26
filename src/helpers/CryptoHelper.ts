@@ -10,7 +10,7 @@ import { crypto } from "@std/crypto";
  * A class for cryptographic functions.
  * @class CryptoHelper
  */
-export default class CryptoHelper {
+export  class CryptoHelper {
 	private static readonly encoder = new TextEncoder();
 	private static readonly decoder = new TextDecoder();
 
