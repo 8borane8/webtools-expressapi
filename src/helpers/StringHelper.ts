@@ -47,8 +47,8 @@ export class StringHelper {
 	 * @returns {string} The generated random string.
 	 */
 	public static generateRandomString(
-		pattern = "XXXX-XXXX-XXXX-XXXX",
-		characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+		pattern: string = "XXXX-XXXX-XXXX-XXXX",
+		characters: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
 	): string {
 		const array = Array.from(pattern);
 		const randomArray = array.map((c) =>

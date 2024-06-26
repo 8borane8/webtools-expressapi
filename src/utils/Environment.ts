@@ -15,9 +15,15 @@ export class Environment {
 	 * @param {string} [path=".env"] - The path to the environment variables file.
 	 * @returns {void}
 	 */
-	public static load(path = ".env"): void {
-		for (const lines of Deno.readTextFileSync(path).split("\n")) {
-			const parts = lines.split("=");
+	public static load(path: string = ".env"): void {
+		for (const rawLine of Deno.readTextFileSync(path).split("\n")) {
+			const line = rawLine.replace("\r", "");
+
+			const parts = line.split("=");
+			if (parts.length != 2) {
+				continue;
+			}
+
 			Deno.env.set(parts[0], parts[1]);
 		}
 	}
