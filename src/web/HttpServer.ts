@@ -323,10 +323,6 @@ export class HttpServer {
 	}
 
 	private async requestListener(request: Request): Promise<Response> {
-		if (request.method == "OPTIONS") {
-			return new Response(null, { status: 200 });
-		}
-
 		const url = new URL(request.url);
 		const req = new HttpRequest(
 			url.pathname,
@@ -346,6 +342,10 @@ export class HttpServer {
 			if (response instanceof Response) {
 				return response;
 			}
+		}
+
+		if (request.method == "OPTIONS") {
+			return new Response(null, { status: 200 });
 		}
 
 		const route = this.routes.get(req.method)?.find((r) =>
