@@ -46,5 +46,4 @@ concevoir des API performantes et évolutives avec une grande facilité.
 
 ## Documentation
 
-**Vous aimez ExpressAPI ? Ajoutez une star à notre répertoire
-:star::arrow_up:.**
+**Vous aimez ExpressAPI ? Ajoutez une star à notre répertoire ⭐👆**
