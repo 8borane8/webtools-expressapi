@@ -147,7 +147,8 @@ export class HttpResponse {
 	public sendFile(path: string): Response {
 		this.setHeader(
 			"Content-Type",
-			contentType(`.${path.split(".").at(-1)}`) || "application/octet-stream",
+			contentType(`.${path.split(".").at(-1)}`) ||
+				"application/octet-stream",
 		);
 		this.setHeader("Content-Length", Deno.statSync(path).size.toString());
 
