@@ -1,5 +1,3 @@
-import { contentType } from "@std/media-types";
-
 /**
  * A simple HTTP server implementation.
  * @module HttpServer
@@ -147,7 +145,7 @@ export class HttpResponse {
 	public sendFile(path: string): Response {
 		this.setHeader(
 			"Content-Type",
-			contentType(path) || "application/octet-stream",
+			path.split(".")[-1] || "application/octet-stream",
 		);
 		this.setHeader("Content-Length", Deno.statSync(path).size.toString());
 

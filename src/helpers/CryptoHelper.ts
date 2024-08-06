@@ -1,4 +1,3 @@
-import { decodeBase64, encodeBase64 } from "@std/encoding";
 import { crypto } from "@std/crypto";
 
 /**
@@ -12,31 +11,6 @@ import { crypto } from "@std/crypto";
  */
 export class CryptoHelper {
 	private static readonly encoder = new TextEncoder();
-	private static readonly decoder = new TextDecoder();
-
-	/**
-	 * Encode a string in base64.
-	 * @method b64encode
-	 * @static
-	 * @param {string} payload - The string to encode in base64.
-	 * @returns {string} The base64 encoded string.
-	 */
-	public static b64encode(payload: string): string {
-		const encodedPayload = this.encoder.encode(payload);
-		return encodeBase64(encodedPayload);
-	}
-
-	/**
-	 * Decode a base64 encoded string.
-	 * @method b64decode
-	 * @static
-	 * @param {string} payload - The base64 encoded string to decode.
-	 * @returns {string} The decoded string.
-	 */
-	public static b64decode(payload: string): string {
-		const payloadBuffer = decodeBase64(payload);
-		return this.decoder.decode(payloadBuffer);
-	}
 
 	/**
 	 * Generate a SHA-256 hash of a string.

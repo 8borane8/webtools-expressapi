@@ -29,7 +29,7 @@ concevoir des API performantes et évolutives avec une grande facilité.
 ## Technologies
 
 - **Language** : Deno (Typescript)
-- **Librairies** : jsr:@std/crypto, jsr:@std/encoding, jsr:@std/media-types
+- **Librairies** : jsr:@std/crypto
 
 ## Avantages
 
