@@ -1,6 +1,6 @@
 {
 	"name": "@webtools/expressapi",
-	"version": "0.2.6",
+	"version": "0.3.0",
 	"exports": "./src/mod.ts",
 
 	"lock": false,
@@ -11,6 +11,7 @@
 
 	"fmt": {
 		"useTabs": true,
+		"lineWidth": 120,
 		"indentWidth": 4
 	}
 }

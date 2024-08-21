@@ -7,7 +7,7 @@
  * A class for managing environment variables.
  * @class Environment
  */
-export class Environment {
+export abstract class Environment {
 	/**
 	 * Load environment variables from a file.
 	 * @method load

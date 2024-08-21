@@ -7,7 +7,7 @@
  * A class for manipulating strings.
  * @class StringHelper
  */
-export class StringHelper {
+export abstract class StringHelper {
 	/**
 	 * Escape HTML entities in a string.
 	 * @method escapehtmlEntities
@@ -51,11 +51,7 @@ export class StringHelper {
 		characters: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
 	): string {
 		const array = Array.from(pattern);
-		const randomArray = array.map((c) =>
-			c == "X"
-				? characters[Math.floor(Math.random() * characters.length)]
-				: c
-		);
+		const randomArray = array.map((c) => c == "X" ? characters[Math.floor(Math.random() * characters.length)] : c);
 		return randomArray.join("");
 	}
 }

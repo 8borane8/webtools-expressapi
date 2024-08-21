@@ -1,164 +1,13 @@
-import { contentType } from "@std/media-types";
-
 /**
  * A simple HTTP server implementation.
  * @module HttpServer
  */
 
-/**
- * @enum {string} HttpMethods - Enum representing the HTTP methods supported by the server.
- * @property {string} GET - The HTTP GET method.
- * @property {string} POST - The HTTP POST method.
- * @property {string} PUT - The HTTP PUT method.
- * @property {string} PATCH - The HTTP PATCH method.
- * @property {string} DELETE - The HTTP DELETE method.
- */
-export enum HttpMethods {
-	GET = "GET",
-	POST = "POST",
-	PUT = "PUT",
-	PATCH = "PATCH",
-	DELETE = "DELETE",
-}
-
-/**
- * Le type RequestListener représente la signature d'une fonction qui gère une requête HTTP entrante.
- * @param {HttpRequest} req - L'objet HttpRequest représentant la requête entrante.
- * @param {HttpResponse} res - L'objet HttpResponse permettant de définir la réponse HTTP à envoyer.
- * @returns {Promise<Response | void> | Response | void} Une promesse résolue avec la réponse HTTP à envoyer, ou rien si la réponse a déjà été envoyée.
- */
-export type RequestListener = (
-	req: HttpRequest,
-	res: HttpResponse,
-) => Promise<Response | void> | Response | void;
-
-/**
- * Interface pour définir une route.
- * @interface Route
- * @property {string} url - L'URL de la route.
- * @property {HttpMethods} method - La méthode HTTP de la route.
- * @property {RequestListener[]} middlewares - Les middlewares à appliquer à la route.
- * @property {RequestListener} requestListener - Le listener à appeler lorsque la route est appelée.
- */
-export interface Route {
-	url: string;
-	method: HttpMethods;
-	middlewares: RequestListener[];
-	requestListener: RequestListener;
-}
-
-/**
- * @typedef {Object} HttpRequest - Object representing an incoming HTTP request.
- * @property {string} url - The request URL.
- * @property {HttpMethods} method - The HTTP method of the request.
- * @property {Headers} headers - The headers of the request.
- * @property {string|object|null} body - The body of the request.
- * @property {Map<string, string>} query - The query parameters of the request.
- * @property {Map<string, string>} params - The route parameters of the request.
- */
-export class HttpRequest {
-	// deno-lint-ignore no-explicit-any
-	public readonly data: any = {};
-
-	public readonly query: Map<string, string> = new Map();
-	public readonly params: Map<string, string> = new Map();
-
-	constructor(
-		public url: string,
-		public readonly method: HttpMethods,
-		public readonly headers: Headers,
-		// deno-lint-ignore no-explicit-any
-		public readonly body: any,
-	) {}
-}
-
-/**
- * A class for building HTTP responses.
- * @class HttpResponse
- */
-export class HttpResponse {
-	private readonly headers: Map<string, string> = new Map();
-	private code: number = 200;
-
-	/**
-	 * Set a response header.
-	 * @method setHeader
-	 * @param {string} name - The header name.
-	 * @param {string} value - The header value.
-	 */
-	public setHeader(name: string, value: string): void {
-		this.headers.set(name, value);
-	}
-
-	/**
-	 * Set the response status code.
-	 * @method status
-	 * @param {number} code - The status code.
-	 * @returns {HttpResponse} The current instance of HttpResponse.
-	 */
-	public status(code: number): HttpResponse {
-		this.code = code;
-		return this;
-	}
-
-	/**
-	 * Send a text response.
-	 * @method send
-	 * @param {string} text - The text to send.
-	 * @returns {Response} The response object.
-	 */
-	public send(text: string | null): Response {
-		return new Response(text, { status: this.code, headers: this.headers });
-	}
-
-	/**
-	 * Send a JSON response.
-	 * @method json
-	 * @param {object} object - The object to send as JSON.
-	 * @returns {Response} The response object.
-	 */
-	public json(object: object): Response {
-		this.setHeader("Content-Type", "application/json");
-
-		return new Response(JSON.stringify(object), {
-			status: this.code,
-			headers: this.headers,
-		});
-	}
-
-	/**
-	 * Send a redirect response.
-	 * @method redirect
-	 * @param {string} url - The URL to redirect to.
-	 * @returns {Response} The response object.
-	 */
-	public redirect(url: string): Response {
-		this.code = 302;
-		this.setHeader("Location", url);
-		return new Response(null, { status: this.code, headers: this.headers });
-	}
-
-	/**
-	 * Send a file as a response.
-	 * @method sendFile
-	 * @param {string} path - The path to the file to send.
-	 * @returns {Response} The response object.
-	 */
-	public sendFile(path: string): Response {
-		this.setHeader(
-			"Content-Type",
-			contentType(`.${path.split(".").at(-1)}`) ||
-				"application/octet-stream",
-		);
-		this.setHeader("Content-Length", Deno.statSync(path).size.toString());
-
-		const file = Deno.openSync(path, { read: true });
-		return new Response(file.readable, {
-			status: this.code,
-			headers: this.headers,
-		});
-	}
-}
+import type { RequestListener } from "../interfaces/RequestListener.ts";
+import { HttpResponse } from "../interfaces/HttpResponse.ts";
+import { HttpMethods } from "../interfaces/HttpMethods.ts";
+import { HttpRequest } from "../interfaces/HttpRequest.ts";
+import type { Route } from "../interfaces/Route.ts";
 
 /**
  * The HttpServer class.
@@ -171,8 +20,7 @@ export class HttpServer {
 
 	private readonly middlewares: RequestListener[] = [];
 
-	private endpointNotFoundFunction: RequestListener =
-		HttpServer.EndpointNotFoundFunction;
+	private endpointNotFoundFunction: RequestListener = HttpServer.EndpointNotFoundFunction;
 
 	/**
 	 * Create a new instance of HttpServer.

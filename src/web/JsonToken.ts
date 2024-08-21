@@ -1,9 +1,9 @@
-import { CryptoHelper } from "../helpers/CryptoHelper.ts";
-
 /**
  * A module containing the JsonToken class.
  * @module JsonToken
  */
+
+import { CryptoHelper } from "../helpers/CryptoHelper.ts";
 
 /**
  * A class for generating and verifying JSON web tokens.
