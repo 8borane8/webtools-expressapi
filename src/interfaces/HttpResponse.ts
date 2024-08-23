@@ -63,10 +63,11 @@ export class HttpResponse {
 	 * Send a redirect response.
 	 * @method redirect
 	 * @param {string} url - The URL to redirect to.
+	 * @param {number} code - The Code used to redirect.
 	 * @returns {Response} The response object.
 	 */
-	public redirect(url: string): Response {
-		this.code = 302;
+	public redirect(url: string, code: number = 307): Response {
+		this.code = code;
 		this.setHeader("Location", url);
 		return new Response(null, { status: this.code, headers: this.headers });
 	}
