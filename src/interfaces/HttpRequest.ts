@@ -11,6 +11,7 @@ import type { HttpMethods } from "./HttpMethods.ts";
  * @property {HttpMethods} method - The HTTP method of the request.
  * @property {Headers} headers - The headers of the request.
  * @property {string|object|null} body - The body of the request.
+ * @property {Request} raw - The raw request.
  * @property {Map<string, string>} query - The query parameters of the request.
  * @property {Map<string, string>} params - The route parameters of the request.
  */
@@ -27,5 +28,6 @@ export class HttpRequest {
 		public readonly headers: Headers,
 		// deno-lint-ignore no-explicit-any
 		public readonly body: any,
+		public readonly raw: Request,
 	) {}
 }
