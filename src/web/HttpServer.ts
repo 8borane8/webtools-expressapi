@@ -179,6 +179,7 @@ export class HttpServer {
 			request.headers.get("content-type")?.startsWith("application/json")
 				? await request.json()
 				: await request.text(),
+			request,
 		);
 
 		url.searchParams.forEach((value, key) => req.query.set(key, value));
