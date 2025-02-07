@@ -1,95 +1,44 @@
-/**
- * A class for building HTTP responses.
- * @module HttpResponse
- */
-
 import { contentType } from "@std/media-types";
 
-/**
- * A class for building HTTP responses.
- * @class HttpResponse
- */
 export class HttpResponse {
-	private readonly headers: Map<string, string> = new Map();
 	private code: number = 200;
+	private readonly headers: Map<string, string> = new Map();
 
-	/**
-	 * Set a response header.
-	 * @method setHeader
-	 * @param {string} name - The header name.
-	 * @param {string} value - The header value.
-	 */
-	public setHeader(name: string, value: string): void {
+	public setHeader(name: string, value: string): HttpResponse {
 		this.headers.set(name, value);
+		return this;
 	}
 
-	/**
-	 * Set the response status code.
-	 * @method status
-	 * @param {number} code - The status code.
-	 * @returns {HttpResponse} The current instance of HttpResponse.
-	 */
 	public status(code: number): HttpResponse {
 		this.code = code;
 		return this;
 	}
 
-	/**
-	 * Send a text response.
-	 * @method send
-	 * @param {string} text - The text to send.
-	 * @returns {Response} The response object.
-	 */
-	public send(text: string | null): Response {
-		return new Response(text, { status: this.code, headers: this.headers });
+	public type(type: string): HttpResponse {
+		this.setHeader("Content-Type", contentType(`.${type}`) || "application/octet-stream");
+		return this;
 	}
 
-	/**
-	 * Send a JSON response.
-	 * @method json
-	 * @param {object} object - The object to send as JSON.
-	 * @returns {Response} The response object.
-	 */
-	public json(object: object): Response {
-		this.setHeader("Content-Type", "application/json");
-
-		return new Response(JSON.stringify(object), {
-			status: this.code,
-			headers: this.headers,
-		});
+	public size(size: number): HttpResponse {
+		this.setHeader("Content-Length", size.toString());
+		return this;
 	}
 
-	/**
-	 * Send a redirect response.
-	 * @method redirect
-	 * @param {string} url - The URL to redirect to.
-	 * @param {number} code - The Code used to redirect.
-	 * @returns {Response} The response object.
-	 */
+	public send(body: BodyInit | null): Response {
+		return new Response(body, { status: this.code, headers: this.headers });
+	}
+
+	// deno-lint-ignore no-explicit-any
+	public json(body: any): Response {
+		return this.type("json").send(JSON.stringify(body));
+	}
+
 	public redirect(url: string, code: number = 307): Response {
-		this.code = code;
-		this.setHeader("Location", url);
-		return new Response(null, { status: this.code, headers: this.headers });
+		return this.setHeader("Location", url).status(code).send(null);
 	}
 
-	/**
-	 * Send a file as a response.
-	 * @method sendFile
-	 * @param {string} path - The path to the file to send.
-	 * @returns {Response} The response object.
-	 */
 	public sendFile(path: string): Response {
-		this.setHeader(
-			"Content-Type",
-			contentType(`.${path.split(".").at(-1)}`) ||
-				"application/octet-stream",
-		);
-		this.setHeader("Content-Length", Deno.statSync(path).size.toString());
-
 		const file = Deno.openSync(path, { read: true });
-		return new Response(file.readable, {
-			status: this.code,
-			headers: this.headers,
-		});
+		return this.type(path.split(".").at(-1)!).size(Deno.statSync(path).size).send(file.readable);
 	}
 }

@@ -1,17 +1,18 @@
 {
 	"name": "@webtools/expressapi",
-	"version": "0.3.2",
-	"exports": "./src/mod.ts",
+	"version": "0.4.0",
 
+	"exports": "./src/mod.ts",
 	"lock": false,
+
 	"imports": {
-		"@std/crypto": "jsr:@std/crypto@^0.224.0",
-		"@std/media-types": "jsr:@std/media-types@^1.0.2"
+		"@std/media-types": "jsr:@std/media-types@^1.1.0",
+		"@std/crypto": "jsr:@std/crypto@^1.0.4"
 	},
 
 	"fmt": {
-		"useTabs": true,
+		"indentWidth": 4,
 		"lineWidth": 120,
-		"indentWidth": 4
+		"useTabs": true
 	}
 }

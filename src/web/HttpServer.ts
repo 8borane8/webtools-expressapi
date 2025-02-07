@@ -1,173 +1,85 @@
-/**
- * A simple HTTP server implementation.
- * @module HttpServer
- */
-
 import type { RequestListener } from "../interfaces/RequestListener.ts";
 import { HttpResponse } from "../interfaces/HttpResponse.ts";
 import { HttpMethods } from "../interfaces/HttpMethods.ts";
 import { HttpRequest } from "../interfaces/HttpRequest.ts";
 import type { Route } from "../interfaces/Route.ts";
 
-/**
- * The HttpServer class.
- * @class HttpServer
- */
 export class HttpServer {
-	private readonly routes: Map<HttpMethods, Route[]> = new Map(
-		Object.values(HttpMethods).map((value) => [value, []]),
-	);
-
+	private readonly routes: Map<HttpMethods, Route[]> = new Map(Object.values(HttpMethods).map((v) => [v, []]));
 	private readonly middlewares: RequestListener[] = [];
 
-	private endpointNotFoundFunction: RequestListener = HttpServer.EndpointNotFoundFunction;
+	private endpointNotFoundFunction: RequestListener = HttpServer.endpointNotFoundFunction;
 
-	/**
-	 * Create a new instance of HttpServer.
-	 * @constructor
-	 * @param {number} [port=5050] - The port number to listen on.
-	 */
 	constructor(port = 5050) {
 		Deno.serve({ port }, this.requestListener.bind(this));
 	}
 
-	/**
-	 * Register a new route with the specified URL, HTTP method, middlewares and request listener.
-	 * @method registerRoute
-	 * @param {string} url - The URL of the route.
-	 * @param {HttpMethods} method - The HTTP method of the route.
-	 * @param {RequestListener[]} middlewares - An array of middleware functions to be executed before the request listener.
-	 * @param {RequestListener} requestListener - The function to be executed when the route is matched.
-	 * @throws {Error} If the route is already registered for the specified HTTP method.
-	 */
 	public registerRoute(
 		url: string,
 		method: HttpMethods,
 		middlewares: RequestListener[],
 		requestListener: RequestListener,
 	): void {
-		const methodRoutes = this.routes.get(method);
-		if (methodRoutes && methodRoutes.some((r) => r.url == url)) {
-			throw new Error(
-				`The route '${url}' is already registered for the '${method}' method.`,
-			);
+		const routes = this.routes.get(method)!;
+		if (routes.some((r) => r.url == url)) {
+			throw new Error(`The route '${url}' is already registered for the '${method}' method.`);
 		}
-		methodRoutes?.push({ url, method, middlewares, requestListener });
+
+		routes.push({ url, method, middlewares, requestListener });
 	}
 
-	/**
-	 * Register a new GET route with the specified URL, request listener and middlewares.
-	 * @method get
-	 * @param {string} url - The URL of the route.
-	 * @param {RequestListener} requestListener - The function to be executed when the route is matched.
-	 * @param {RequestListener[]} [middlewares=[]] - An array of middleware functions to be executed before the request listener.
-	 */
-	public get(
-		url: string,
-		requestListener: RequestListener,
-		middlewares: RequestListener[] = [],
-	): void {
+	public get(url: string, requestListener: RequestListener, middlewares: RequestListener[] = []): void {
 		this.registerRoute(url, HttpMethods.GET, middlewares, requestListener);
 	}
 
-	/**
-	 * Register a new POST route with the specified URL, request listener and middlewares.
-	 * @method post
-	 * @param {string} url - The URL of the route.
-	 * @param {RequestListener} requestListener - The function to be executed when the route is matched.
-	 * @param {RequestListener[]} [middlewares=[]] - An array of middleware functions to be executed before the request listener.
-	 */
-	public post(
-		url: string,
-		requestListener: RequestListener,
-		middlewares: RequestListener[] = [],
-	): void {
+	public post(url: string, requestListener: RequestListener, middlewares: RequestListener[] = []): void {
 		this.registerRoute(url, HttpMethods.POST, middlewares, requestListener);
 	}
 
-	/**
-	 * Register a new PUT route with the specified URL, request listener and middlewares.
-	 * @method put
-	 * @param {string} url - The URL of the route.
-	 * @param {RequestListener} requestListener - The function to be executed when the route is matched.
-	 * @param {RequestListener[]} [middlewares=[]] - An array of middleware functions to be executed before the request listener.
-	 */
-	public put(
-		url: string,
-		requestListener: RequestListener,
-		middlewares: RequestListener[] = [],
-	): void {
+	public put(url: string, requestListener: RequestListener, middlewares: RequestListener[] = []): void {
 		this.registerRoute(url, HttpMethods.PUT, middlewares, requestListener);
 	}
 
-	/**
-	 * Register a new PATCH route with the specified URL, request listener and middlewares.
-	 * @method patch
-	 * @param {string} url - The URL of the route.
-	 * @param {RequestListener} requestListener - The function to be executed when the route is matched.
-	 * @param {RequestListener[]} [middlewares=[]] - An array of middleware functions to be executed before the request listener.
-	 */
-	public patch(
-		url: string,
-		requestListener: RequestListener,
-		middlewares: RequestListener[] = [],
-	): void {
-		this.registerRoute(
-			url,
-			HttpMethods.PATCH,
-			middlewares,
-			requestListener,
-		);
+	public patch(url: string, requestListener: RequestListener, middlewares: RequestListener[] = []): void {
+		this.registerRoute(url, HttpMethods.PATCH, middlewares, requestListener);
 	}
 
-	/**
-	 * Register a new DELETE route with the specified URL, request listener and middlewares.
-	 * @method delete
-	 * @param {string} url - The URL of the route.
-	 * @param {RequestListener} requestListener - The function to be executed when the route is matched.
-	 * @param {RequestListener[]} [middlewares=[]] - An array of middleware functions to be executed before the request listener.
-	 */
-	public delete(
-		url: string,
-		requestListener: RequestListener,
-		middlewares: RequestListener[] = [],
-	): void {
-		this.registerRoute(
-			url,
-			HttpMethods.DELETE,
-			middlewares,
-			requestListener,
-		);
+	public delete(url: string, requestListener: RequestListener, middlewares: RequestListener[] = []): void {
+		this.registerRoute(url, HttpMethods.DELETE, middlewares, requestListener);
 	}
 
-	/**
-	 * Add a middleware function to the application.
-	 * @method use
-	 * @param {RequestListener} middleware - The middleware function to be added.
-	 */
 	public use(middleware: RequestListener): void {
 		this.middlewares.push(middleware);
 	}
 
-	/**
-	 * Set the function to be called when an endpoint is not found.
-	 * @method setEndpointNotFoundFunction
-	 * @param {RequestListener} endpointNotFoundFunction - The function to be called when an endpoint is not found.
-	 */
-	public setEndpointNotFoundFunction(
-		endpointNotFoundFunction: RequestListener,
-	): void {
-		this.endpointNotFoundFunction = endpointNotFoundFunction;
+	public setEndpointNotFoundFunction(fnc: RequestListener): void {
+		this.endpointNotFoundFunction = fnc;
 	}
 
-	private static EndpointNotFoundFunction(
-		_req: HttpRequest,
-		res: HttpResponse,
-	): Response {
+	private static endpointNotFoundFunction(_req: HttpRequest, res: HttpResponse): Response {
 		return res.status(404).json({
 			success: false,
-			error: "404 Endpoint not found.",
+			error: "404 Not Found.",
 		});
+	}
+
+	// deno-lint-ignore no-explicit-any
+	private async parseRequestBody(request: Request): Promise<any> {
+		const contentType = request.headers.get("content-type") ?? "";
+
+		if (contentType.startsWith("application/json")) {
+			return await request.json();
+		}
+
+		if (contentType.startsWith("multipart/form-data")) {
+			return await request.formData();
+		}
+
+		if (contentType.startsWith("application/x-www-form-urlencoded")) {
+			return Object.fromEntries(new URLSearchParams(await request.text()));
+		}
+
+		return await request.text();
 	}
 
 	private async requestListener(request: Request): Promise<Response> {
@@ -176,54 +88,48 @@ export class HttpServer {
 			url.pathname,
 			request.method as HttpMethods,
 			request.headers,
-			request.headers.get("content-type")?.startsWith("application/json")
-				? await request.json()
-				: await request.text(),
+			await this.parseRequestBody(request.clone()),
 			request,
 		);
 
-		url.searchParams.forEach((value, key) => req.query.set(key, value));
+		Object.entries(url.searchParams).forEach(([key, value]) => {
+			req.query[key] = value;
+		});
 
 		const res = new HttpResponse();
 
 		for (const middleware of this.middlewares) {
 			const response = await middleware(req, res);
-			if (response instanceof Response) {
-				return response;
-			}
+			if (response instanceof Response) return response;
 		}
 
-		if (request.method == "OPTIONS") {
-			return res.send("");
-		}
+		if (request.method == "OPTIONS") return res.send(null);
 
-		const route = this.routes.get(req.method)?.find((r) =>
-			new RegExp(`^${r.url.replace(/:[a-zA-Z0-9_]+/g, "[^/]+")}$`).test(
-				req.url,
-			)
-		);
-
-		if (!route) {
-			return await this.endpointNotFoundFunction(req, res) ||
-				HttpServer.EndpointNotFoundFunction(req, res);
-		}
-
-		const urlParts = req.url.split("/");
-		route.url.split("/").forEach((part, index) => {
-			if (part.startsWith(":")) {
-				req.params.set(part.slice(1), urlParts[index]);
-			}
+		const route = this.routes.get(req.method)!.find((r) => {
+			const regex = new RegExp(`^${r.url.replace(/:[^\/]+/g, "[^/]+")}$`);
+			return regex.test(req.url);
 		});
+
+		if (route == undefined) {
+			return await this.endpointNotFoundFunction(req, res) ||
+				HttpServer.endpointNotFoundFunction(req, res);
+		}
+
+		const urlParts = req.url.slice(1).split("/");
+		const routeParts = route.url.slice(1).split("/");
+
+		for (let i = 0; i < routeParts.length; i++) {
+			if (!routeParts[i].startsWith(":")) continue;
+			req.params[routeParts[i].slice(1)] = urlParts[i];
+		}
 
 		for (const middleware of route.middlewares) {
 			const response = await middleware(req, res);
-			if (response instanceof Response) {
-				return response;
-			}
+			if (response instanceof Response) return response;
 		}
 
 		return await route.requestListener(req, res) ||
 			await this.endpointNotFoundFunction(req, res) ||
-			HttpServer.EndpointNotFoundFunction(req, res);
+			HttpServer.endpointNotFoundFunction(req, res);
 	}
 }
