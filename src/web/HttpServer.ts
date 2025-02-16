@@ -72,7 +72,7 @@ export class HttpServer {
 		}
 
 		if (contentType.startsWith("multipart/form-data")) {
-			return await request.formData();
+			return Object.fromEntries(await request.formData());
 		}
 
 		if (contentType.startsWith("application/x-www-form-urlencoded")) {
