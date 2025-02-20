@@ -92,10 +92,7 @@ export class HttpServer {
 			request,
 		);
 
-		Object.entries(url.searchParams).forEach(([key, value]) => {
-			req.query[key] = value;
-		});
-
+		Array.from(url.searchParams.entries()).forEach(([key, value]) => req.query[key] = value);
 		const res = new HttpResponse();
 
 		for (const middleware of this.middlewares) {
