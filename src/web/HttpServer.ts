@@ -68,15 +68,27 @@ export class HttpServer {
 		const contentType = request.headers.get("content-type") ?? "";
 
 		if (contentType.startsWith("application/json")) {
-			return await request.json();
+			try {
+				return await request.json();
+			} catch {
+				return {};
+			}
 		}
 
 		if (contentType.startsWith("multipart/form-data")) {
-			return Object.fromEntries(await request.formData());
+			try {
+				return Object.fromEntries(await request.formData());
+			} catch {
+				return {};
+			}
 		}
 
 		if (contentType.startsWith("application/x-www-form-urlencoded")) {
-			return Object.fromEntries(new URLSearchParams(await request.text()));
+			try {
+				return Object.fromEntries(new URLSearchParams(await request.text()));
+			} catch {
+				return {};
+			}
 		}
 
 		return await request.text();
