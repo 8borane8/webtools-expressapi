@@ -112,7 +112,7 @@ export class HttpServer {
 			if (response instanceof Response) return response;
 		}
 
-		if (request.method == "OPTIONS") return res.send(null);
+		if (!this.routes.has(req.method)) return res.send(null);
 
 		const route = this.routes.get(req.method)!.find((r) => {
 			const regex = new RegExp(`^${r.url.replace(/:[^\/]+/g, "[^/]+")}$`);
