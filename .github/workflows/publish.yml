@@ -1,5 +1,4 @@
-name: publish
-
+name: Publish
 on:
     push:
         branches:
@@ -18,4 +17,4 @@ jobs:
             - uses: denoland/setup-deno@v2
 
             - run: deno fmt --check
-            - run: npx jsr publish
+            - run: deno publish

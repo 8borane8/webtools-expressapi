@@ -5,9 +5,8 @@ export abstract class StringHelper {
 		pattern: string = "XXXX-XXXX-XXXX-XXXX",
 		chars: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
 	): string {
-		return pattern
-			.split("")
-			.map((c) => (c == "X" ? chars[Math.floor(CryptoHelper.secureRandom() * chars.length)] : c))
-			.join("");
+		const p = Array.from(pattern);
+		const s = p.map((c) => (c == "X" ? chars[Math.floor(CryptoHelper.secureRandom() * chars.length)] : c));
+		return s.join("");
 	}
 }

@@ -2,7 +2,7 @@
 
 <p align="center">
     <em>
-        ExpressAPI is a small, simple, and ultrafast web framework built on Web Standards for Deno.
+        ExpressAPI is a small, simple, and ultrafast library for building web APIs, built on Web Standards for Deno.
     </em>
 </p>
 
