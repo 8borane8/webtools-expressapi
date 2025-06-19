@@ -20,14 +20,14 @@
 
 ## ✨ Features
 
-* Minimal and intuitive API inspired by Express.js
-* Built-in routing with support for all HTTP methods
-* Middleware support
-* Typed request and response objects
-* Built-in file serving, redirection, and JSON handling
-* Simple JWT-like token generation and verification
-* Cryptographic helper utilities
-* Secure random string generation
+- Minimal and intuitive API inspired by Express.js
+- Built-in routing with support for all HTTP methods
+- Middleware support
+- Typed request and response objects
+- Built-in file serving, redirection, and JSON handling
+- Simple JWT-like token generation and verification
+- Cryptographic helper utilities
+- Secure random string generation
 
 ## 📦 Installation
 
@@ -38,7 +38,7 @@ deno add jsr:@webtools/expressapi
 ## 🧠 Usage Example
 
 ```ts
-import { HttpServer, HttpMethods } from "jsr:@webtools/expressapi";
+import { HttpMethods, HttpServer } from "jsr:@webtools/expressapi";
 
 const server = new HttpServer(3000);
 
@@ -66,13 +66,13 @@ server.get("/test", (req, res) => res.json({ success: true }));
 
 #### Methods
 
-* `.get(url, handler, middlewares?)`
-* `.post(url, handler, middlewares?)`
-* `.put(url, handler, middlewares?)`
-* `.patch(url, handler, middlewares?)`
-* `.delete(url, handler, middlewares?)`
-* `.use(middleware)`
-* `.setEndpointNotFoundFunction(handler)`
+- `.get(url, handler, middlewares?)`
+- `.post(url, handler, middlewares?)`
+- `.put(url, handler, middlewares?)`
+- `.patch(url, handler, middlewares?)`
+- `.delete(url, handler, middlewares?)`
+- `.use(middleware)`
+- `.setEndpointNotFoundFunction(handler)`
 
 ### `HttpRequest`
 
@@ -80,15 +80,15 @@ Encapsulates the incoming HTTP request.
 
 #### Properties
 
-* `.url`: string
-* `.method`: `HttpMethods`
-* `.headers`: Headers
-* `.body`: any (parsed JSON, text, form-data, etc.)
-* `.query`: object with URL query parameters
-* `.params`: object with URL path parameters
-* `.cookies`: parsed cookie values
-* `.ip`: client IP if available
-* `.raw`: raw `Request` object
+- `.url`: string
+- `.method`: `HttpMethods`
+- `.headers`: Headers
+- `.body`: any (parsed JSON, text, form-data, etc.)
+- `.query`: object with URL query parameters
+- `.params`: object with URL path parameters
+- `.cookies`: parsed cookie values
+- `.ip`: client IP if available
+- `.raw`: raw `Request` object
 
 ### `HttpResponse`
 
@@ -96,23 +96,23 @@ Utility class to build and send responses.
 
 #### Methods
 
-* `.status(code: number)`
-* `.setHeader(name, value)`
-* `.type(mime: string)` — auto-detects MIME type
-* `.json(data: any)` — sets JSON content type
-* `.sendFile(path: string)` — serves local file
-* `.redirect(url: string, code = 307)`
-* `.send(body: BodyInit | null)`
+- `.status(code: number)`
+- `.setHeader(name, value)`
+- `.type(mime: string)` — auto-detects MIME type
+- `.json(data: any)` — sets JSON content type
+- `.sendFile(path: string)` — serves local file
+- `.redirect(url: string, code = 307)`
+- `.send(body: BodyInit | null)`
 
 ### `HttpMethods`
 
 ```ts
 enum HttpMethods {
-  GET = "GET",
-  POST = "POST",
-  PUT = "PUT",
-  PATCH = "PATCH",
-  DELETE = "DELETE"
+	GET = "GET",
+	POST = "POST",
+	PUT = "PUT",
+	PATCH = "PATCH",
+	DELETE = "DELETE",
 }
 ```
 
@@ -144,10 +144,10 @@ CryptoHelper.secureRandom(); // returns a cryptographically secure random float 
 
 Available methods:
 
-* `.md5(payload)`
-* `.sha256(payload)`
-* `.sha512(payload)`
-* `.secureRandom()`
+- `.md5(payload)`
+- `.sha256(payload)`
+- `.sha512(payload)`
+- `.secureRandom()`
 
 ## 🔤 String Utilities
 
@@ -178,7 +178,7 @@ interface Route {
 ```ts
 type RequestListener = (
 	req: HttpRequest,
-	res: HttpResponse
+	res: HttpResponse,
 ) => Response | Promise<Response | void> | void;
 ```
 
