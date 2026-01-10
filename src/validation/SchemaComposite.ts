@@ -1,19 +1,19 @@
 import { BaseSchema, type Schema, ValidationError } from "./BaseSchema.ts";
 
 export class SchemaComposite {
-	static object<T extends Record<string, Schema>>(shape: T, message?: string) {
+	static object<T extends Record<string, Schema>>(shape: T, message?: string): ObjectSchema<T> {
 		return new ObjectSchema(shape, message);
 	}
 
-	static array<T>(itemSchema: Schema<T>, message?: string) {
+	static array<T>(itemSchema: Schema<T>, message?: string): ArraySchema<T> {
 		return new ArraySchema(itemSchema, message);
 	}
 
-	static optional<T>(schema: Schema<T>) {
+	static optional<T>(schema: Schema<T>): OptionalSchema<T> {
 		return new OptionalSchema(schema);
 	}
 
-	static nullable<T>(schema: Schema<T>) {
+	static nullable<T>(schema: Schema<T>): NullableSchema<T> {
 		return new NullableSchema(schema);
 	}
 
@@ -25,12 +25,12 @@ export class SchemaComposite {
 		return new UnionSchema(schemas, message);
 	}
 
-	static enum<T extends [string, ...string[]]>(values: T, message?: string) {
+	static enum<T extends [string, ...string[]]>(values: T, message?: string): EnumSchema<T[number]> {
 		return new EnumSchema(values, message);
 	}
 }
 
-class ObjectSchema<T extends Record<string, Schema>> extends BaseSchema<
+export class ObjectSchema<T extends Record<string, Schema>> extends BaseSchema<
 	{
 		[K in keyof T]: T[K] extends Schema<infer U> ? U : never;
 	}
@@ -82,7 +82,7 @@ class ObjectSchema<T extends Record<string, Schema>> extends BaseSchema<
 	}
 }
 
-class ArraySchema<T> extends BaseSchema<T[]> {
+export class ArraySchema<T> extends BaseSchema<T[]> {
 	private message?: string;
 	private minLength?: { value: number; message: string };
 	private maxLength?: { value: number; message: string };
@@ -95,12 +95,12 @@ class ArraySchema<T> extends BaseSchema<T[]> {
 		this.message = message;
 	}
 
-	min(length: number, message: string = this.message ?? `Array must have at least ${length} items`) {
+	min(length: number, message: string = this.message ?? `Array must have at least ${length} items`): this {
 		this.minLength = { value: length, message };
 		return this;
 	}
 
-	max(length: number, message: string = this.message ?? `Array must have at most ${length} items`) {
+	max(length: number, message: string = this.message ?? `Array must have at most ${length} items`): this {
 		this.maxLength = { value: length, message };
 		return this;
 	}
@@ -146,7 +146,7 @@ class ArraySchema<T> extends BaseSchema<T[]> {
 	}
 }
 
-class OptionalSchema<T> extends BaseSchema<T | undefined> {
+export class OptionalSchema<T> extends BaseSchema<T | undefined> {
 	constructor(private readonly schema: Schema<T>) {
 		super();
 	}
@@ -156,7 +156,7 @@ class OptionalSchema<T> extends BaseSchema<T | undefined> {
 	}
 }
 
-class NullableSchema<T> extends BaseSchema<T | null> {
+export class NullableSchema<T> extends BaseSchema<T | null> {
 	constructor(private readonly schema: Schema<T>) {
 		super();
 	}
@@ -166,7 +166,7 @@ class NullableSchema<T> extends BaseSchema<T | null> {
 	}
 }
 
-class UnionSchema<T extends [Schema, Schema, ...Schema[]]> extends BaseSchema<
+export class UnionSchema<T extends [Schema, Schema, ...Schema[]]> extends BaseSchema<
 	T[number] extends Schema<infer U> ? U : never
 > {
 	constructor(
@@ -194,7 +194,7 @@ class UnionSchema<T extends [Schema, Schema, ...Schema[]]> extends BaseSchema<
 	}
 }
 
-class EnumSchema<T extends string> extends BaseSchema<T> {
+export class EnumSchema<T extends string> extends BaseSchema<T> {
 	constructor(
 		private readonly values: readonly string[],
 		private readonly message?: string,

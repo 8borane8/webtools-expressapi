@@ -5,43 +5,51 @@ import type { Schema } from "./BaseSchema.ts";
 export * from "./BaseSchema.ts";
 
 export class SchemaBuilder {
-	static string(message?: string) {
+	static string(message?: string): ReturnType<typeof SchemaPrimordials.string> {
 		return SchemaPrimordials.string(message);
 	}
 
-	static number(message?: string) {
+	static number(message?: string): ReturnType<typeof SchemaPrimordials.number> {
 		return SchemaPrimordials.number(message);
 	}
 
-	static boolean(message?: string) {
+	static boolean(message?: string): ReturnType<typeof SchemaPrimordials.boolean> {
 		return SchemaPrimordials.boolean(message);
 	}
 
-	static object<T extends Record<string, Schema>>(shape: T, message?: string) {
+	static object<T extends Record<string, Schema>>(
+		shape: T,
+		message?: string,
+	): ReturnType<typeof SchemaComposite.object<T>> {
 		return SchemaComposite.object(shape, message);
 	}
 
-	static array<T>(itemSchema: Schema<T>, message?: string) {
+	static array<T>(itemSchema: Schema<T>, message?: string): ReturnType<typeof SchemaComposite.array<T>> {
 		return SchemaComposite.array(itemSchema, message);
 	}
 
-	static optional<T>(schema: Schema<T>) {
+	static optional<T>(schema: Schema<T>): ReturnType<typeof SchemaComposite.optional<T>> {
 		return SchemaComposite.optional(schema);
 	}
 
-	static nullable<T>(schema: Schema<T>) {
+	static nullable<T>(schema: Schema<T>): ReturnType<typeof SchemaComposite.nullable<T>> {
 		return SchemaComposite.nullable(schema);
 	}
 
-	static union<T extends [Schema, Schema, ...Schema[]]>(...args: [...T, string?]) {
+	static union<T extends [Schema, Schema, ...Schema[]]>(
+		...args: [...T, string?]
+	): ReturnType<typeof SchemaComposite.union<T>> {
 		return SchemaComposite.union(...args);
 	}
 
-	static enum<T extends [string, ...string[]]>(values: T, message?: string) {
+	static enum<T extends [string, ...string[]]>(
+		values: T,
+		message?: string,
+	): ReturnType<typeof SchemaComposite.enum<T>> {
 		return SchemaComposite.enum(values, message);
 	}
 
-	static any() {
+	static any(): ReturnType<typeof SchemaPrimordials.any> {
 		return SchemaPrimordials.any();
 	}
 }

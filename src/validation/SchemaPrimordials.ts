@@ -1,24 +1,24 @@
 import { BaseSchema } from "./BaseSchema.ts";
 
 export class SchemaPrimordials {
-	static string(message?: string) {
+	static string(message?: string): StringSchema {
 		return new StringSchema(message);
 	}
 
-	static number(message?: string) {
+	static number(message?: string): NumberSchema {
 		return new NumberSchema(message);
 	}
 
-	static boolean(message?: string) {
+	static boolean(message?: string): BooleanSchema {
 		return new BooleanSchema(message);
 	}
 
-	static any() {
+	static any(): AnySchema {
 		return new AnySchema();
 	}
 }
 
-class StringSchema extends BaseSchema<string> {
+export class StringSchema extends BaseSchema<string> {
 	private minLength?: { value: number; message: string };
 	private maxLength?: { value: number; message: string };
 	private patterns: Array<{ pattern: RegExp; message: string }> = [];
@@ -29,27 +29,27 @@ class StringSchema extends BaseSchema<string> {
 		super();
 	}
 
-	min(length: number, message: string = this.message ?? `String must be at least ${length} characters`) {
+	min(length: number, message: string = this.message ?? `String must be at least ${length} characters`): this {
 		this.minLength = { value: length, message };
 		return this;
 	}
 
-	max(length: number, message: string = this.message ?? `String must be at most ${length} characters`) {
+	max(length: number, message: string = this.message ?? `String must be at most ${length} characters`): this {
 		this.maxLength = { value: length, message };
 		return this;
 	}
 
-	regex(pattern: RegExp, message: string = this.message ?? "String does not match required pattern") {
+	regex(pattern: RegExp, message: string = this.message ?? "String does not match required pattern"): this {
 		this.patterns.push({ pattern, message });
 		return this;
 	}
 
-	email(message: string = this.message ?? "Invalid email format") {
+	email(message: string = this.message ?? "Invalid email format"): this {
 		this.isEmail = message;
 		return this;
 	}
 
-	url(message: string = this.message ?? "Invalid URL format") {
+	url(message: string = this.message ?? "Invalid URL format"): this {
 		this.isUrl = message;
 		return this;
 	}
@@ -90,7 +90,7 @@ class StringSchema extends BaseSchema<string> {
 	}
 }
 
-class NumberSchema extends BaseSchema<number> {
+export class NumberSchema extends BaseSchema<number> {
 	private minValue?: { value: number; message: string };
 	private maxValue?: { value: number; message: string };
 	private isInt?: string;
@@ -101,27 +101,27 @@ class NumberSchema extends BaseSchema<number> {
 		super();
 	}
 
-	min(value: number, message: string = this.message ?? `Number must be at least ${value}`) {
+	min(value: number, message: string = this.message ?? `Number must be at least ${value}`): this {
 		this.minValue = { value, message };
 		return this;
 	}
 
-	max(value: number, message: string = this.message ?? `Number must be at most ${value}`) {
+	max(value: number, message: string = this.message ?? `Number must be at most ${value}`): this {
 		this.maxValue = { value, message };
 		return this;
 	}
 
-	int(message: string = this.message ?? "Expected integer, got float") {
+	int(message: string = this.message ?? "Expected integer, got float"): this {
 		this.isInt = message;
 		return this;
 	}
 
-	positive(message: string = this.message ?? "Number must be positive") {
+	positive(message: string = this.message ?? "Number must be positive"): this {
 		this.isPositive = message;
 		return this;
 	}
 
-	negative(message: string = this.message ?? "Number must be negative") {
+	negative(message: string = this.message ?? "Number must be negative"): this {
 		this.isNegative = message;
 		return this;
 	}
@@ -159,7 +159,7 @@ class NumberSchema extends BaseSchema<number> {
 	}
 }
 
-class BooleanSchema extends BaseSchema<boolean> {
+export class BooleanSchema extends BaseSchema<boolean> {
 	constructor(private readonly message?: string) {
 		super();
 	}
@@ -180,7 +180,7 @@ class BooleanSchema extends BaseSchema<boolean> {
 	}
 }
 
-class AnySchema extends BaseSchema<unknown> {
+export class AnySchema extends BaseSchema<unknown> {
 	parse(data: unknown): unknown {
 		return data;
 	}
