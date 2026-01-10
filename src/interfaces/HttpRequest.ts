@@ -1,8 +1,7 @@
 import type { HttpMethods } from "./HttpMethods.ts";
 
-export class HttpRequest {
-	// deno-lint-ignore no-explicit-any
-	public readonly data: any = {};
+export class HttpRequest<TBody = unknown, TData = unknown> {
+	public readonly data: TData = {} as TData;
 
 	public readonly query: Record<string, string> = {};
 	public readonly params: Record<string, string> = {};
@@ -11,11 +10,10 @@ export class HttpRequest {
 	public readonly cookies: Record<string, string> = {};
 
 	constructor(
-		public url: string,
+		public readonly url: string,
 		public readonly method: HttpMethods,
 		public readonly headers: Headers,
-		// deno-lint-ignore no-explicit-any
-		public readonly body: any,
+		public body: TBody,
 		public readonly raw: Request,
 	) {
 		if (this.headers.has("x-forwarded-for")) {

@@ -28,8 +28,7 @@ export class HttpResponse {
 		return new Response(body, { status: this.code, headers: this.headers });
 	}
 
-	// deno-lint-ignore no-explicit-any
-	public json(body: any): Response {
+	public json<T>(body: T): Response {
 		return this.type("json").send(JSON.stringify(body));
 	}
 
@@ -39,6 +38,9 @@ export class HttpResponse {
 
 	public sendFile(path: string): Response {
 		const file = Deno.openSync(path, { read: true });
-		return this.type(path.split(".").at(-1)!).size(Deno.statSync(path).size).send(file.readable);
+		const size = Deno.statSync(path).size;
+		const type = path.split(".").at(-1)!;
+
+		return this.type(type).size(size).send(file.readable);
 	}
 }

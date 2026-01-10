@@ -1,13 +1,12 @@
 {
 	"name": "@webtools/expressapi",
 	"exports": "./src/mod.ts",
-	"version": "0.4.7",
+	"version": "0.5.0",
 	"license": "MIT",
 
 	"lock": false,
 	"imports": {
-		"@std/media-types": "jsr:@std/media-types@^1.1.0",
-		"@std/crypto": "jsr:@std/crypto@^1.0.4"
+		"@std/media-types": "jsr:@std/media-types@^1.1.0"
 	},
 
 	"fmt": {
