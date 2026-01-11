@@ -29,11 +29,6 @@ export class Router<TData = TDataDefault> {
 		return this;
 	}
 
-	public addRoutes<TBody = TBodyDefault>(routes: Route<TBody, TData>[]): this {
-		routes.forEach((route) => this.addRoute(route));
-		return this;
-	}
-
 	public get(
 		url: string,
 		requestListener: RequestListener<null, TData>,
