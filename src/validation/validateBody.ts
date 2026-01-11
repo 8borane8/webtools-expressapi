@@ -4,7 +4,7 @@ import type { HttpResponse } from "../web/HttpResponse.ts";
 import type { TBodyDefault, TDataDefault } from "../interfaces/Types.ts";
 import type { Schema } from "./Schema.ts";
 
-export function validateBody<T, TData = TDataDefault>(schema: Schema<T>): RequestListener<T, TData> {
+export function validateBody<TBody, TData = TDataDefault>(schema: Schema<TBody>): RequestListener<TBody, TData> {
 	return (req: HttpRequest<TBodyDefault, TData>, res: HttpResponse): Response | void => {
 		const result = schema.safeParse(req.body);
 		if (!result.success) {
@@ -15,6 +15,6 @@ export function validateBody<T, TData = TDataDefault>(schema: Schema<T>): Reques
 			});
 		}
 
-		(req as HttpRequest<T, TData>).body = result.data;
+		(req as HttpRequest<TBody, TData>).body = result.data;
 	};
 }

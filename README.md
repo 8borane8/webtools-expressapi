@@ -62,11 +62,11 @@ Main entry point to create and start a web server. Supports generic type `TData`
 #### Constructor
 
 ```ts
-new HttpServer<TData = unknown>(port?: number)
+new HttpServer<TData = any>(port?: number)
 ```
 
 - `port` (optional): Port number to listen on. Defaults to `5050`.
-- `TData` (optional): Generic type for `req.data` property. Defaults to `unknown`.
+- `TData` (optional): Generic type for `req.data` property. Defaults to `any`.
 
 #### Example with Typed Data
 
@@ -153,31 +153,17 @@ server.use(async (req, res) => {
 });
 ```
 
-##### `.setEndpointNotFoundFunction(handler)`
+##### `.notFound(handler)`
 
 Set a custom handler for 404 responses.
 
 ```ts
-server.setEndpointNotFoundFunction((req, res) => {
+server.notFound((req, res) => {
 	return res.status(404).json({
 		error: "Route not found",
 		path: req.url,
 	});
 });
-```
-
-##### `.registerRoute<T>(url, method, middlewares, requestListener, schema?)`
-
-Low-level method to register routes manually.
-
-```ts
-server.registerRoute(
-	"/custom",
-	HttpMethods.PUT,
-	[middleware1, middleware2],
-	handler,
-	schema,
-);
 ```
 
 ### `HttpRequest<TBody, TData>`
@@ -373,6 +359,83 @@ Serve a local file. Automatically sets `Content-Type` and `Content-Length`.
 res.sendFile("./public/index.html");
 ```
 
+### `Router<TData>`
+
+Router class for organizing routes. Can be mounted on `HttpServer` with or without a prefix.
+
+#### Constructor
+
+```ts
+new Router<TData = any>()
+```
+
+- `TData` (optional): Generic type for `req.data` property. Defaults to `any`.
+
+#### Methods
+
+All HTTP methods are available: `.get()`, `.post()`, `.put()`, `.patch()`, `.delete()`
+
+##### `.use(middleware)`
+
+Register a middleware for all routes in this router.
+
+```ts
+const router = new Router();
+router.use((req, res) => {
+	console.log("Router middleware");
+});
+```
+
+##### `.use(prefix, router)`
+
+Mount a router with a prefix.
+
+```ts
+const apiRouter = new Router();
+apiRouter.get("/status", (req, res) => {
+	return res.json({ status: "ok" });
+});
+
+server.use("/api", apiRouter);
+// Route becomes: /api/status
+```
+
+##### `.use(router)`
+
+Mount a router without a prefix.
+
+```ts
+const adminRouter = new Router();
+adminRouter.get("/dashboard", (req, res) => {
+	return res.json({ dashboard: true });
+});
+
+server.use(adminRouter);
+// Route becomes: /dashboard
+```
+
+##### `.addRoute(route)`
+
+Add a route object directly.
+
+```ts
+router.addRoute({
+	url: "/custom",
+	method: HttpMethods.PUT,
+	middlewares: [],
+	requestListener: handler,
+	schema: mySchema,
+});
+```
+
+##### `.addRoutes(routes)`
+
+Add multiple routes at once.
+
+```ts
+router.addRoutes([route1, route2, route3]);
+```
+
 ### `HttpMethods`
 
 Enumeration of supported HTTP methods.
@@ -437,10 +500,11 @@ z.string("Name is required"); // Custom error message
   ```
 
 - `.regex(pattern, message?)`: Regular expression validation (can be called multiple times)
-  ```ts
-  z.string().regex(/^[A-Z]/, "Doit commencer par une majuscule")
-  	.regex(/\d/, "Doit contenir un chiffre");
-  ```
+
+```ts
+z.string().regex(/^[A-Z]/, "Must start with uppercase")
+	.regex(/\d/, "Must contain a digit");
+```
 
 - `.email(message?)`: Email format validation
   ```ts
@@ -561,7 +625,7 @@ const userSchema = z.object({
 Validates an array where each item matches the schema.
 
 ```ts
-const schema = z.array(z.string(), "Doit être un tableau");
+const schema = z.array(z.string(), "Must be an array");
 ```
 
 **Methods:**
@@ -1085,23 +1149,23 @@ If any middleware returns a `Response`, execution stops and that response is sen
 Type for request handlers and middlewares.
 
 ```ts
-type RequestListener<TBody = unknown, TData = unknown> = (
+type RequestListener<TBody = any, TData = any> = (
 	req: HttpRequest<TBody, TData>,
 	res: HttpResponse,
 ) => Promise<Response | void> | Response | void;
 ```
 
-### `Route<TData>`
+### `Route<TBody, TData>`
 
-Internal route interface.
+Route interface.
 
 ```ts
-interface Route<TData> {
+interface Route<TBody = any, TData = any> {
 	url: string;
 	method: HttpMethods;
-	middlewares: RequestListener<unknown, TData>[];
-	requestListener: RequestListener<unknown, TData>;
-	schema?: Schema<unknown>;
+	middlewares: RequestListener<TBody, TData>[];
+	requestListener: RequestListener<TBody, TData>;
+	schema?: Schema<TBody>;
 }
 ```
 
@@ -1225,7 +1289,7 @@ server.get("/profile", async (req, res) => {
 	return res.json({ user: req.data.user });
 }, [authMiddleware]);
 
-server.setEndpointNotFoundFunction((req, res) => {
+server.notFound((req, res) => {
 	return res.status(404).json({
 		error: "Not Found",
 		path: req.url,
@@ -1233,6 +1297,8 @@ server.setEndpointNotFoundFunction((req, res) => {
 });
 ```
 
+```
 ## License
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
+```

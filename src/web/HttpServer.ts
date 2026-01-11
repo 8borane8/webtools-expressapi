@@ -1,93 +1,32 @@
 import type { TBodyDefault, TDataDefault } from "../interfaces/Types.ts";
 import type { RequestListener } from "../interfaces/RequestListener.ts";
-import { validateBody } from "../validation/validateBody.ts";
 import { HttpMethods } from "../interfaces/HttpMethods.ts";
-import type { Schema } from "../validation/Schema.ts";
-import type { Route } from "../interfaces/Route.ts";
 import { HttpResponse } from "./HttpResponse.ts";
 import { HttpRequest } from "./HttpRequest.ts";
+import { Router } from "./Router.ts";
 
-export class HttpServer<TData = TDataDefault> {
-	private readonly routes: Map<HttpMethods, Route[]> = new Map(Object.values(HttpMethods).map((v) => [v, []]));
-	private readonly middlewares: RequestListener[] = [];
-
-	private notFoundEndpoint = (_req: HttpRequest, res: HttpResponse): Response | Promise<Response> =>
+export class HttpServer<TData = TDataDefault> extends Router<TData> {
+	private notFoundHandler: RequestListener<TBodyDefault, TData> = (_req, res) =>
 		res.status(404).json({
 			success: false,
 			error: "404 Not Found.",
 		});
 
 	constructor(port = 5050) {
+		super();
 		Deno.serve({ port }, this.requestListener.bind(this));
 	}
 
-	public registerRoute<TBody = TBodyDefault>(route: Route<TBody, TData>): void {
-		const routes = this.routes.get(route.method)!;
-		if (routes.some((r) => r.url == route.url)) {
-			throw new Error(`The route '${route.url}' is already registered for the '${route.method}' method.`);
-		}
-
-		route.middlewares = route.schema
-			? [validateBody<TBody, TData>(route.schema), ...route.middlewares as RequestListener<TBody, TData>[]]
-			: route.middlewares as RequestListener<TBody, TData>[];
-
-		routes.push(route);
+	public notFound(handler: RequestListener<TBodyDefault, TData>): void {
+		this.notFoundHandler = handler;
 	}
 
-	public registerRoutes<TBody = TBodyDefault>(routes: Route<TBody, TData>[]): void {
-		routes.forEach((route) => this.registerRoute(route));
-	}
-
-	public get(
-		url: string,
-		requestListener: RequestListener<null, TData>,
-		middlewares: RequestListener<null, TData>[] = [],
-	): void {
-		this.registerRoute({ url, method: HttpMethods.GET, middlewares, requestListener });
-	}
-
-	public post<TBody = TBodyDefault>(
-		url: string,
-		requestListener: RequestListener<TBody, TData>,
-		middlewares: RequestListener<TBody, TData>[] = [],
-		schema?: Schema<TBody>,
-	): void {
-		this.registerRoute({ url, method: HttpMethods.POST, middlewares, requestListener, schema });
-	}
-
-	public put<TBody = TBodyDefault>(
-		url: string,
-		requestListener: RequestListener<TBody, TData>,
-		middlewares: RequestListener<TBody, TData>[] = [],
-		schema?: Schema<TBody>,
-	): void {
-		this.registerRoute({ url, method: HttpMethods.PUT, middlewares, requestListener, schema });
-	}
-
-	public patch<TBody = TBodyDefault>(
-		url: string,
-		requestListener: RequestListener<TBody, TData>,
-		middlewares: RequestListener<TBody, TData>[] = [],
-		schema?: Schema<TBody>,
-	): void {
-		this.registerRoute({ url, method: HttpMethods.PATCH, middlewares, requestListener, schema });
-	}
-
-	public delete<TBody = TBodyDefault>(
-		url: string,
-		requestListener: RequestListener<TBody, TData>,
-		middlewares: RequestListener<TBody, TData>[] = [],
-		schema?: Schema<TBody>,
-	): void {
-		this.registerRoute({ url, method: HttpMethods.DELETE, middlewares, requestListener, schema });
-	}
-
-	public use(middleware: RequestListener): void {
-		this.middlewares.push(middleware);
-	}
-
-	public notFound(fnc: typeof this.notFoundEndpoint): void {
-		this.notFoundEndpoint = fnc;
+	private async handleNotFound(req: HttpRequest<TBodyDefault, TData>, res: HttpResponse): Promise<Response> {
+		const response = await this.notFoundHandler(req, res);
+		return response || res.status(404).json({
+			success: false,
+			error: "404 Not Found.",
+		});
 	}
 
 	private async parseRequestBody(request: Request): Promise<TBodyDefault> {
@@ -139,7 +78,7 @@ export class HttpServer<TData = TDataDefault> {
 		if (request.method == "OPTIONS") return res.send(null);
 
 		if (!this.routes.has(req.method)) {
-			return await this.notFoundEndpoint(req, res);
+			return await this.handleNotFound(req, res);
 		}
 
 		const route = this.routes.get(req.method)?.find((r) => {
@@ -147,7 +86,9 @@ export class HttpServer<TData = TDataDefault> {
 			return regex.test(req.url);
 		});
 
-		if (!route) return await this.notFoundEndpoint(req, res);
+		if (!route) {
+			return await this.handleNotFound(req, res);
+		}
 
 		const urlParts = req.url.slice(1).split("/");
 		const routeParts = route.url.slice(1).split("/");
@@ -163,7 +104,7 @@ export class HttpServer<TData = TDataDefault> {
 			if (response) return response;
 		}
 
-		return await route.requestListener(req, res) ||
-			await this.notFoundEndpoint(req, res);
+		const routeResponse = await route.requestListener(req, res);
+		return routeResponse || await this.handleNotFound(req, res);
 	}
 }
