@@ -1,7 +1,7 @@
 {
 	"name": "@webtools/expressapi",
 	"exports": "./src/mod.ts",
-	"version": "0.5.0",
+	"version": "0.5.01",
 	"license": "MIT",
 
 	"lock": false,
