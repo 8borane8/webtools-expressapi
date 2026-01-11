@@ -2,7 +2,7 @@ import type { HttpMethods } from "../interfaces/HttpMethods.ts";
 import type { TBodyDefault, TDataDefault } from "../interfaces/Types.ts";
 
 export class HttpRequest<TBody = TBodyDefault, TData = TDataDefault> {
-	public readonly data: TData = {} as TData;
+	public data: TData = {} as TData;
 
 	public readonly query: Record<string, string> = {};
 	public readonly params: Record<string, string> = {};
@@ -14,7 +14,7 @@ export class HttpRequest<TBody = TBodyDefault, TData = TDataDefault> {
 		public readonly url: string,
 		public readonly method: HttpMethods,
 		public readonly headers: Headers,
-		public readonly body: TBody,
+		public body: TBody,
 		public readonly raw: Request,
 	) {
 		if (this.headers.has("x-forwarded-for")) {
