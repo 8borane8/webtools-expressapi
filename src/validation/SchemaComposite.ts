@@ -1,6 +1,6 @@
 import { BaseSchema, type Schema, ValidationError } from "./BaseSchema.ts";
 
-export class SchemaComposite {
+export abstract class SchemaComposite {
 	static object<T extends Record<string, Schema>>(shape: T, message?: string): ObjectSchema<T> {
 		return new ObjectSchema(shape, message);
 	}
@@ -45,7 +45,7 @@ export class ObjectSchema<T extends Record<string, Schema>> extends BaseSchema<
 		this.message = message;
 	}
 
-	parse(data: unknown): {
+	override parse(data: unknown): {
 		[K in keyof T]: T[K] extends Schema<infer U> ? U : never;
 	} {
 		if (typeof data !== "object" || data === null || Array.isArray(data)) {
@@ -105,7 +105,7 @@ export class ArraySchema<T> extends BaseSchema<T[]> {
 		return this;
 	}
 
-	parse(data: unknown): T[] {
+	override parse(data: unknown): T[] {
 		if (!Array.isArray(data)) {
 			const errorMsg = this.message ?? `Expected array, got ${typeof data}`;
 			throw this.createError([], errorMsg, "invalid_type");
@@ -151,7 +151,7 @@ export class OptionalSchema<T> extends BaseSchema<T | undefined> {
 		super();
 	}
 
-	parse(data: unknown): T | undefined {
+	override parse(data: unknown): T | undefined {
 		return data === undefined ? undefined : this.schema.parse(data);
 	}
 }
@@ -161,7 +161,7 @@ export class NullableSchema<T> extends BaseSchema<T | null> {
 		super();
 	}
 
-	parse(data: unknown): T | null {
+	override parse(data: unknown): T | null {
 		return data ? this.schema.parse(data) : null;
 	}
 }
@@ -176,7 +176,7 @@ export class UnionSchema<T extends [Schema, Schema, ...Schema[]]> extends BaseSc
 		super();
 	}
 
-	parse(data: unknown): T[number] extends Schema<infer U> ? U : never {
+	override parse(data: unknown): T[number] extends Schema<infer U> ? U : never {
 		for (const schema of this.schemas) {
 			try {
 				return schema.parse(data) as T[number] extends Schema<infer U> ? U : never;
@@ -202,7 +202,7 @@ export class EnumSchema<T extends string> extends BaseSchema<T> {
 		super();
 	}
 
-	parse(data: unknown): T {
+	override parse(data: unknown): T {
 		const str = String(data);
 		if (!this.values.includes(str)) {
 			const errorMsg = this.message ?? `Expected one of [${this.values.join(", ")}], got ${str}`;

@@ -4,7 +4,7 @@ import type { Schema } from "./BaseSchema.ts";
 
 export * from "./BaseSchema.ts";
 
-export class SchemaBuilder {
+export abstract class SchemaBuilder {
 	static string(message?: string): ReturnType<typeof SchemaPrimordials.string> {
 		return SchemaPrimordials.string(message);
 	}
@@ -52,6 +52,27 @@ export class SchemaBuilder {
 	static any(): ReturnType<typeof SchemaPrimordials.any> {
 		return SchemaPrimordials.any();
 	}
+
+	static type<T>(
+		// deno-lint-ignore no-explicit-any
+		typeConstructor: new (...args: any[]) => T,
+		message?: string,
+	): ReturnType<typeof SchemaPrimordials.type<T>> {
+		return SchemaPrimordials.type(typeConstructor, message);
+	}
 }
 
 export const z = SchemaBuilder;
+
+const file = new File([], "test.txt");
+console.log(z.type(File, "TESTT !!!").parse(file));
+
+console.log(
+	z.object({
+		name: z.string(),
+		age: z.number(),
+	}).parse({
+		name: "test.txt",
+		age: 20,
+	}),
+);

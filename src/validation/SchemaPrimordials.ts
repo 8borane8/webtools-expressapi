@@ -1,6 +1,6 @@
 import { BaseSchema } from "./BaseSchema.ts";
 
-export class SchemaPrimordials {
+export abstract class SchemaPrimordials {
 	static string(message?: string): StringSchema {
 		return new StringSchema(message);
 	}
@@ -15,6 +15,14 @@ export class SchemaPrimordials {
 
 	static any(): AnySchema {
 		return new AnySchema();
+	}
+
+	static type<T>(
+		// deno-lint-ignore no-explicit-any
+		typeConstructor: new (...args: any[]) => T,
+		message?: string,
+	): TypeSchema<T> {
+		return new TypeSchema(typeConstructor, message);
 	}
 }
 
@@ -54,7 +62,7 @@ export class StringSchema extends BaseSchema<string> {
 		return this;
 	}
 
-	parse(data: unknown): string {
+	override parse(data: unknown): string {
 		const str = String(data);
 
 		if (this.minLength && str.length < this.minLength.value) {
@@ -126,7 +134,7 @@ export class NumberSchema extends BaseSchema<number> {
 		return this;
 	}
 
-	parse(data: unknown): number {
+	override parse(data: unknown): number {
 		const str = String(data).trim();
 		const num = this.isInt ? parseInt(str, 10) : parseFloat(str);
 
@@ -164,7 +172,7 @@ export class BooleanSchema extends BaseSchema<boolean> {
 		super();
 	}
 
-	parse(data: unknown): boolean {
+	override parse(data: unknown): boolean {
 		const str = String(data).trim().toLowerCase();
 
 		if (str === "true" || str === "1") {
@@ -181,7 +189,26 @@ export class BooleanSchema extends BaseSchema<boolean> {
 }
 
 export class AnySchema extends BaseSchema<unknown> {
-	parse(data: unknown): unknown {
+	override parse(data: unknown): unknown {
 		return data;
+	}
+}
+
+export class TypeSchema<T> extends BaseSchema<T> {
+	constructor(
+		// deno-lint-ignore no-explicit-any
+		private readonly typeConstructor: new (...args: any[]) => T,
+		private readonly message?: string,
+	) {
+		super();
+	}
+
+	override parse(data: unknown): T {
+		if (!(data instanceof this.typeConstructor)) {
+			const errorMsg = this.message ??
+				`Expected instance of ${this.typeConstructor.name}, got ${typeof data}`;
+			throw this.createError([], errorMsg, "invalid_type");
+		}
+		return data as T;
 	}
 }
