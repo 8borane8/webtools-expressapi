@@ -17,7 +17,7 @@ export class JsonToken {
 		return result === 0;
 	}
 
-	public async sign<T>(jsonPayload: T): Promise<string> {
+	public async sign(jsonPayload: unknown): Promise<string> {
 		const payloadString = JSON.stringify(jsonPayload);
 		const encodedPayload = StringHelper.encodeBase64Url(payloadString);
 
@@ -27,7 +27,8 @@ export class JsonToken {
 		return `${encodedPayload}.${signature}`;
 	}
 
-	public async verify<T>(token: string): Promise<T | null> {
+	// deno-lint-ignore no-explicit-any
+	public async verify<T = any>(token: string): Promise<T | null> {
 		try {
 			const [payload, signature] = token.split(".");
 			if (!payload || !signature) return null;

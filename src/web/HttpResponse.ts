@@ -28,7 +28,7 @@ export class HttpResponse {
 		return new Response(body, { status: this.code, headers: this.headers });
 	}
 
-	public json<T>(body: T): Response {
+	public json(body: unknown): Response {
 		return this.type("json").send(JSON.stringify(body));
 	}
 
