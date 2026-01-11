@@ -63,16 +63,3 @@ export abstract class SchemaBuilder {
 }
 
 export const z = SchemaBuilder;
-
-const file = new File([], "test.txt");
-console.log(z.type(File, "TESTT !!!").parse(file));
-
-console.log(
-	z.object({
-		name: z.string(),
-		age: z.number(),
-	}).parse({
-		name: "test.txt",
-		age: 20,
-	}),
-);
