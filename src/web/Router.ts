@@ -15,7 +15,7 @@ export class Router<TData = TDataDefault> {
 		}
 	}
 
-	public addRoute<TBody = TBodyDefault>(route: Route<TBody, TData>): void {
+	public addRoute<TBody = TBodyDefault>(route: Route<TBody, TData>): this {
 		const routes = this.routes.get(route.method)!;
 		if (routes.some((r) => r.url == route.url)) {
 			throw new Error(`The route '${route.url}' is already registered for the '${route.method}' method.`);
@@ -26,18 +26,21 @@ export class Router<TData = TDataDefault> {
 		}
 
 		routes.push(route);
+		return this;
 	}
 
-	public addRoutes<TBody = TBodyDefault>(routes: Route<TBody, TData>[]): void {
+	public addRoutes<TBody = TBodyDefault>(routes: Route<TBody, TData>[]): this {
 		routes.forEach((route) => this.addRoute(route));
+		return this;
 	}
 
 	public get(
 		url: string,
 		requestListener: RequestListener<null, TData>,
 		middlewares: RequestListener<null, TData>[] = [],
-	): void {
+	): this {
 		this.addRoute({ url, method: HttpMethods.GET, middlewares, requestListener });
+		return this;
 	}
 
 	public post<TBody = TBodyDefault>(
@@ -45,8 +48,9 @@ export class Router<TData = TDataDefault> {
 		requestListener: RequestListener<TBody, TData>,
 		middlewares: RequestListener<TBody, TData>[] = [],
 		schema?: Schema<TBody>,
-	): void {
+	): this {
 		this.addRoute({ url, method: HttpMethods.POST, middlewares, requestListener, schema });
+		return this;
 	}
 
 	public put<TBody = TBodyDefault>(
@@ -54,8 +58,9 @@ export class Router<TData = TDataDefault> {
 		requestListener: RequestListener<TBody, TData>,
 		middlewares: RequestListener<TBody, TData>[] = [],
 		schema?: Schema<TBody>,
-	): void {
+	): this {
 		this.addRoute({ url, method: HttpMethods.PUT, middlewares, requestListener, schema });
+		return this;
 	}
 
 	public patch<TBody = TBodyDefault>(
@@ -63,8 +68,9 @@ export class Router<TData = TDataDefault> {
 		requestListener: RequestListener<TBody, TData>,
 		middlewares: RequestListener<TBody, TData>[] = [],
 		schema?: Schema<TBody>,
-	): void {
+	): this {
 		this.addRoute({ url, method: HttpMethods.PATCH, middlewares, requestListener, schema });
+		return this;
 	}
 
 	public delete<TBody = TBodyDefault>(
@@ -72,39 +78,49 @@ export class Router<TData = TDataDefault> {
 		requestListener: RequestListener<TBody, TData>,
 		middlewares: RequestListener<TBody, TData>[] = [],
 		schema?: Schema<TBody>,
-	): void {
+	): this {
 		this.addRoute({ url, method: HttpMethods.DELETE, middlewares, requestListener, schema });
+		return this;
 	}
 
-	public use(middleware: RequestListener<TBodyDefault, TData>): void;
-	public use(prefix: string, router: Router<TData>): void;
-	public use(router: Router<TData>): void;
+	public use(middleware: RequestListener<TBodyDefault, TData>): this;
+	public use(prefix: string, router: Router<TData>): this;
+	public use(router: Router<TData>): this;
 
 	public use(
 		middlewareOrPrefixOrRouter: RequestListener<TBodyDefault, TData> | string | Router<TData>,
 		router?: Router<TData>,
-	): void {
+	): this {
 		if (typeof middlewareOrPrefixOrRouter === "function") {
 			this.middlewares.push(middlewareOrPrefixOrRouter);
-			return;
+			return this;
 		}
 
 		if (typeof middlewareOrPrefixOrRouter === "string" && router) {
-			this.mountRouter(middlewareOrPrefixOrRouter, router);
-			return;
+			this.mountRouter(router, middlewareOrPrefixOrRouter as string);
+			return this;
 		}
 
-		this.mountRouter("", middlewareOrPrefixOrRouter as Router);
+		this.mountRouter(middlewareOrPrefixOrRouter as Router);
+		return this;
 	}
 
-	private mountRouter(prefix: string, router: Router<TData>): void {
-		const normalizedPrefix = prefix.endsWith("/") ? prefix.slice(0, -1) : prefix;
+	private static joinPaths(...parts: string[]): string {
+		return (
+			"/" +
+			parts
+				.join("/")
+				.replace(/\/+/g, "/")
+				.replace(/^\/|\/$/g, "")
+		);
+	}
 
+	private mountRouter(router: Router<TData>, prefix = "/"): void {
 		for (const routes of router.routes.values()) {
 			for (const route of routes) {
 				this.addRoute({
 					...route,
-					url: normalizedPrefix + route.url,
+					url: Router.joinPaths(prefix + route.url),
 					middlewares: [...router.middlewares, ...route.middlewares],
 				});
 			}
