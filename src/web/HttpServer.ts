@@ -128,8 +128,15 @@ export class HttpServer<TData = TDataDefault> {
 			request,
 		);
 
-		Array.from(url.searchParams.entries()).forEach(([key, value]) => req.query[key] = value);
+		Object.entries(url.searchParams).forEach(([key, value]) => req.query[key] = value);
 		const res = new HttpResponse();
+
+		for (const middleware of this.middlewares) {
+			const response = await middleware(req, res);
+			if (response) return response;
+		}
+
+		if (request.method == "OPTIONS") return res.send(null);
 
 		if (!this.routes.has(req.method)) {
 			return await this.notFoundEndpoint(req, res);
@@ -149,11 +156,6 @@ export class HttpServer<TData = TDataDefault> {
 			if (routeParts[i].startsWith(":")) {
 				req.params[routeParts[i].slice(1)] = urlParts[i];
 			}
-		}
-
-		for (const middleware of this.middlewares) {
-			const response = await middleware(req, res);
-			if (response) return response;
 		}
 
 		for (const middleware of route.middlewares) {
