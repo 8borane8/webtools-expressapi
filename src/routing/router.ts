@@ -1,13 +1,14 @@
 import type { ResolvedSchemas, Route, Schemas } from "./route.ts";
 import type { DataDefault } from "../http/request.ts";
 import type { RequestListener } from "./listener.ts";
+import { StringHelper } from "../helpers/string.ts";
 import { HttpMethods } from "../http/methods.ts";
 
 export class Router<TData = DataDefault> {
 	protected readonly routes: Map<HttpMethods, Route<TData, Schemas>[]> = new Map();
 	protected readonly middlewares: RequestListener[] = [];
 
-	constructor() {
+	constructor(protected readonly prefix: string = "/") {
 		for (const method of Object.values(HttpMethods)) {
 			this.routes.set(method, []);
 		}
@@ -15,20 +16,22 @@ export class Router<TData = DataDefault> {
 
 	public addRoute<TSchemas extends Schemas>(route: Route<TData, TSchemas>): this {
 		const routes = this.routes.get(route.method)!;
-		if (routes.some((r) => r.url === route.url)) {
+
+		const prefixedUrl = StringHelper.normalizePath(this.prefix, route.url);
+		if (routes.some((r) => r.url === prefixedUrl)) {
 			throw new Error(
-				`The route '${route.url}' is already registered for the '${route.method}' method.`,
+				`The route '${prefixedUrl}' is already registered for the '${route.method}' method.`,
 			);
 		}
 
-		routes.push(route);
+		routes.push({ ...route, url: prefixedUrl } as Route<TData, TSchemas>);
 		return this;
 	}
 
 	public get<TSchemas extends Schemas>(
 		url: string,
 		requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>,
-		middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[] = [],
+		middlewares?: RequestListener<TData, ResolvedSchemas<TSchemas>>[],
 		schemas?: TSchemas,
 	): this {
 		this.addRoute({
@@ -44,7 +47,7 @@ export class Router<TData = DataDefault> {
 	public post<TSchemas extends Schemas>(
 		url: string,
 		requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>,
-		middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[] = [],
+		middlewares?: RequestListener<TData, ResolvedSchemas<TSchemas>>[],
 		schemas?: TSchemas,
 	): this {
 		this.addRoute({
@@ -60,7 +63,7 @@ export class Router<TData = DataDefault> {
 	public put<TSchemas extends Schemas>(
 		url: string,
 		requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>,
-		middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[] = [],
+		middlewares?: RequestListener<TData, ResolvedSchemas<TSchemas>>[],
 		schemas?: TSchemas,
 	): this {
 		this.addRoute({
@@ -76,7 +79,7 @@ export class Router<TData = DataDefault> {
 	public patch<TSchemas extends Schemas>(
 		url: string,
 		requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>,
-		middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[] = [],
+		middlewares?: RequestListener<TData, ResolvedSchemas<TSchemas>>[],
 		schemas?: TSchemas,
 	): this {
 		this.addRoute({
@@ -92,7 +95,7 @@ export class Router<TData = DataDefault> {
 	public delete<TSchemas extends Schemas>(
 		url: string,
 		requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>,
-		middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[] = [],
+		middlewares?: RequestListener<TData, ResolvedSchemas<TSchemas>>[],
 		schemas?: TSchemas,
 	): this {
 		this.addRoute({
@@ -132,23 +135,10 @@ export class Router<TData = DataDefault> {
 			for (const route of routes) {
 				this.addRoute({
 					...route,
-					url: Router.joinPaths(prefix, route.url),
-					middlewares: [
-						...router.middlewares,
-						...route.middlewares,
-					],
+					url: StringHelper.normalizePath(prefix, route.url),
+					middlewares: route.middlewares ? [...router.middlewares, ...route.middlewares] : router.middlewares,
 				});
 			}
 		}
-	}
-
-	private static joinPaths(...parts: string[]): string {
-		return (
-			"/" +
-			parts
-				.join("/")
-				.replace(/\/+/g, "/") // Remove multiple slashes
-				.replace(/^\/|\/$/g, "") // Remove leading and trailing slashes
-		);
 	}
 }

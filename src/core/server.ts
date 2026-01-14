@@ -1,5 +1,6 @@
 import { type DataDefault, HttpRequest } from "../http/request.ts";
 import type { RequestListener } from "../routing/listener.ts";
+import { StringHelper } from "../helpers/string.ts";
 import { HttpResponse } from "../http/response.ts";
 import { HttpMethods } from "../http/methods.ts";
 import type { Route } from "../routing/route.ts";
@@ -12,9 +13,8 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 			error: "404 Not Found.",
 		});
 
-	constructor(port = 5050) {
+	constructor(private readonly port = 5050) {
 		super();
-		Deno.serve({ port }, this.requestListener.bind(this));
 	}
 
 	public notFound(handler: RequestListener): this {
@@ -103,8 +103,11 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 		const method = request.method as HttpMethods;
 		const body = method === HttpMethods.GET ? null : await this.parseRequestBody(request.clone());
 
+		// Normalize pathname by removing trailing slash (except for root)
+		const normalizedPathname = StringHelper.normalizePath(url.pathname);
+
 		const req = new HttpRequest(
-			url.pathname,
+			normalizedPathname,
 			method,
 			request.headers,
 			body,
@@ -123,10 +126,10 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 			return res.status(200).send(null);
 		}
 
-		const route = this.findMatchingRoute(method, url.pathname);
+		const route = this.findMatchingRoute(method, normalizedPathname);
 		if (!route) return await this.handleNotFound(req, res);
 
-		const routeParams = this.extractRouteParams(url.pathname, route.url);
+		const routeParams = this.extractRouteParams(normalizedPathname, route.url);
 		Object.assign(req.params, routeParams);
 
 		if (route.schemas) {
@@ -167,10 +170,15 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 			}
 		}
 
-		const routeMiddlewareResponse = await this.executeMiddlewares(route.middlewares, req, res);
-		if (routeMiddlewareResponse) return routeMiddlewareResponse;
+		if (route.middlewares) {
+			const routeMiddlewareResponse = await this.executeMiddlewares(route.middlewares, req, res);
+			if (routeMiddlewareResponse) return routeMiddlewareResponse;
+		}
 
-		const routeResponse = await route.requestListener(req, res);
-		return routeResponse || await this.handleNotFound(req, res);
+		return await route.requestListener(req, res) || await this.handleNotFound(req, res);
+	}
+
+	public listen(): void {
+		Deno.serve({ port: this.port }, this.requestListener.bind(this));
 	}
 }

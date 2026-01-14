@@ -36,6 +36,16 @@ export abstract class StringHelper {
 		return atob(paddedBase64);
 	}
 
+	public static normalizePath(...parts: string[]): string {
+		return (
+			"/" +
+			parts
+				.join("/")
+				.replace(/\/+/g, "/") // Remove multiple slashes
+				.replace(/^\/|\/$/g, "") // Remove leading and trailing slashes
+		);
+	}
+
 	public static slugify(str: string): string {
 		return str
 			.toLowerCase()

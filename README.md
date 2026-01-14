@@ -50,7 +50,7 @@ server.post("/users", (req, res) => {
 	return res.status(201).json({ created: true, user });
 });
 
-// Server starts automatically
+server.listen();
 ```
 
 ## 📖 Table of Contents
@@ -74,7 +74,8 @@ import { HttpServer } from "jsr:@webtools/expressapi";
 // Default port is 5050
 const server = new HttpServer(5050);
 
-// Server starts automatically
+// Start the server
+server.listen();
 console.log("Server running on http://localhost:5050");
 ```
 
@@ -146,6 +147,35 @@ server.get("/search", (req, res) => {
 	});
 });
 ```
+
+### URL Normalization
+
+ExpressAPI automatically normalizes all route URLs and incoming request paths. This ensures consistent route matching
+regardless of how URLs are written.
+
+**Normalization rules:**
+
+- Multiple consecutive slashes are collapsed to a single slash
+- Trailing slashes are removed (except for the root path `/`)
+- Leading slashes are normalized
+
+**Examples:**
+
+```ts
+// These route definitions are equivalent:
+server.get("/users", handler);
+server.get("/users/", handler); // Trailing slash removed
+server.get("//users", handler); // Multiple slashes normalized
+
+// These requests all match the same route:
+// GET /users      → matches /users
+// GET /users/     → matches /users (trailing slash removed)
+// GET //users     → matches /users (multiple slashes normalized)
+// GET /users///   → matches /users (normalized)
+```
+
+**Note:** The root path `/` is preserved and not normalized. All other paths are normalized to remove trailing slashes
+and collapse multiple slashes.
 
 ## 📥 Request & Response
 
@@ -445,11 +475,14 @@ z.any(); // Any value
 
 Organize routes into separate modules:
 
+#### Option 1: Prefix in Constructor
+
 ```ts
 // routes/users.ts
 import { Router, z } from "jsr:@webtools/expressapi";
 
-export const usersRouter = new Router();
+// Create router with prefix
+export const usersRouter = new Router("/api/users");
 
 usersRouter.get("/", (req, res) => {
 	return res.json({ users: [] });
@@ -481,9 +514,57 @@ import { usersRouter } from "./routes/users.ts";
 
 const server = new HttpServer(5050);
 
+// Mount router (prefix already applied)
+server.use(usersRouter);
+// Routes: /api/users, /api/users/:id
+
+server.listen();
+```
+
+#### Option 2: Prefix on Mount
+
+```ts
+// routes/users.ts
+import { Router, z } from "jsr:@webtools/expressapi";
+
+export const usersRouter = new Router();
+
+usersRouter.get("/", (req, res) => {
+	return res.json({ users: [] });
+});
+
+usersRouter.get("/:id", (req, res) => {
+	return res.json({ userId: req.params.id });
+});
+```
+
+```ts
+// server.ts
+import { HttpServer } from "jsr:@webtools/expressapi";
+import { usersRouter } from "./routes/users.ts";
+
+const server = new HttpServer(5050);
+
 // Mount router with prefix
 server.use("/api/users", usersRouter);
 // Routes: /api/users, /api/users/:id
+
+server.listen();
+```
+
+#### Option 3: Combined Prefixes
+
+Prefixes can be combined when mounting:
+
+```ts
+// routes/users.ts
+const usersRouter = new Router("/users");
+usersRouter.get("/", handler);
+// Internal routes: /users
+
+// server.ts
+server.use("/api", usersRouter);
+// Final routes: /api/users
 ```
 
 ### Custom 404 Handler
@@ -520,6 +601,8 @@ server.get("/profile", (req, res) => {
 	const { userId, role } = req.data;
 	return res.json({ userId, role });
 });
+
+server.listen();
 ```
 
 ### Error Handling
@@ -545,15 +628,22 @@ server.use((req, res) => {
 class HttpServer<TData = DataDefault> extends Router<TData>
 ```
 
+**Constructor:**
+
+- `new HttpServer(port?: number)` - Create a server on the specified port (default: 5050). Inherits from `Router` with
+  default prefix "/". The server does not start automatically - call `listen()` to start it.
+
 **Methods:**
 
+- `listen()` - Start the server and begin listening for requests
 - `get<TSchemas>(url, handler, middlewares?, schemas?)` - Register GET route
 - `post<TSchemas>(url, handler, middlewares?, schemas?)` - Register POST route
 - `put<TSchemas>(url, handler, middlewares?, schemas?)` - Register PUT route
 - `patch<TSchemas>(url, handler, middlewares?, schemas?)` - Register PATCH route
 - `delete<TSchemas>(url, handler, middlewares?, schemas?)` - Register DELETE route
 - `use(middleware)` - Add global middleware
-- `use(prefix, router)` - Mount router with prefix
+- `use(prefix, router)` - Mount router with prefix (combines with router's own prefix)
+- `use(router)` - Mount router (uses router's own prefix)
 - `notFound(handler)` - Custom 404 handler
 
 ### Router
@@ -562,7 +652,23 @@ class HttpServer<TData = DataDefault> extends Router<TData>
 class Router<TData = DataDefault>
 ```
 
-Same methods as `HttpServer` but doesn't start a server.
+**Constructor:**
+
+- `new Router(prefix?: string)` - Create a router with an optional prefix (default: "/")
+
+**Methods:**
+
+- `get<TSchemas>(url, handler, middlewares?, schemas?)` - Register GET route
+- `post<TSchemas>(url, handler, middlewares?, schemas?)` - Register POST route
+- `put<TSchemas>(url, handler, middlewares?, schemas?)` - Register PUT route
+- `patch<TSchemas>(url, handler, middlewares?, schemas?)` - Register PATCH route
+- `delete<TSchemas>(url, handler, middlewares?, schemas?)` - Register DELETE route
+- `use(middleware)` - Add global middleware
+- `use(prefix, router)` - Mount router with prefix (combines with router's own prefix)
+- `use(router)` - Mount router (uses router's own prefix)
+
+Same methods as `HttpServer` but doesn't start a server. The prefix is automatically applied to all routes when the
+router is used directly or mounted.
 
 ### HttpRequest
 
@@ -616,11 +722,15 @@ CryptoHelper.secureRandom(): number
 StringHelper.generateRandomString(pattern?: string, chars?: string): string
 StringHelper.encodeBase64Url(data: string): string
 StringHelper.decodeBase64Url(data: string): string
+StringHelper.normalizePath(...parts: string[]): string
 StringHelper.slugify(str: string): string
 StringHelper.escapeHtml(str: string): string
 StringHelper.unescapeHtml(str: string): string
 StringHelper.clean(str: string): string
 ```
+
+**StringHelper.normalizePath**: Normalizes URL paths by joining parts, collapsing multiple slashes, and removing
+trailing slashes (except for root). Used internally for route and request path normalization.
 
 #### JsonToken
 
@@ -742,6 +852,8 @@ server.get("/profile", verifyToken, (req, res) => {
 		role: req.data.role,
 	});
 });
+
+server.listen();
 ```
 
 **Note:** This is a simplified token system. For production use cases requiring expiration, refresh tokens, or advanced
@@ -790,6 +902,8 @@ server.put("/users/:id", (req, res) => {
 server.delete("/users/:id", (req, res) => {
 	return res.status(204).send(null);
 });
+
+server.listen();
 ```
 
 ### Authentication Example
@@ -843,6 +957,8 @@ const authMiddleware = async (req, res) => {
 server.get("/profile", authMiddleware, (req, res) => {
 	return res.json({ userId: req.data.userId });
 });
+
+server.listen();
 ```
 
 ### File Upload Example

@@ -16,9 +16,9 @@ export type ResolvedSchemas<TSchemas extends Schemas> = TSchemas extends undefin
 };
 
 export interface Route<TData = DataDefault, TSchemas extends Schemas = Schemas> {
-	readonly url: string;
-	readonly method: HttpMethods;
-	readonly middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[];
-	readonly requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>;
-	readonly schemas?: TSchemas;
+	url: string;
+	method: HttpMethods;
+	requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>;
+	middlewares?: RequestListener<TData, ResolvedSchemas<TSchemas>>[];
+	schemas?: TSchemas;
 }
