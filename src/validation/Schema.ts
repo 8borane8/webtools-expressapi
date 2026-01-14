@@ -1,64 +1,50 @@
-import { SchemaPrimordials } from "./SchemaPrimordials.ts";
-import { SchemaComposite } from "./SchemaComposite.ts";
-import type { Schema } from "./BaseSchema.ts";
-
-export * from "./BaseSchema.ts";
+import { AnySchema, BooleanSchema, FileSchema, NumberSchema, StringSchema } from "./primordials.ts";
+import { ArraySchema, EnumSchema, NullableSchema, ObjectSchema, OptionalSchema, UnionSchema } from "./composite.ts";
+import type { Schema } from "./base.ts";
 
 export abstract class SchemaBuilder {
-	static string(message?: string): ReturnType<typeof SchemaPrimordials.string> {
-		return SchemaPrimordials.string(message);
+	static string(message?: string): StringSchema {
+		return new StringSchema(message);
 	}
 
-	static number(message?: string): ReturnType<typeof SchemaPrimordials.number> {
-		return SchemaPrimordials.number(message);
+	static number(message?: string): NumberSchema {
+		return new NumberSchema(message);
 	}
 
-	static boolean(message?: string): ReturnType<typeof SchemaPrimordials.boolean> {
-		return SchemaPrimordials.boolean(message);
+	static boolean(message?: string): BooleanSchema {
+		return new BooleanSchema(message);
 	}
 
-	static object<T extends Record<string, Schema>>(
-		shape: T,
-		message?: string,
-	): ReturnType<typeof SchemaComposite.object<T>> {
-		return SchemaComposite.object(shape, message);
+	static file(message?: string): FileSchema {
+		return new FileSchema(message);
 	}
 
-	static array<T>(itemSchema: Schema<T>, message?: string): ReturnType<typeof SchemaComposite.array<T>> {
-		return SchemaComposite.array(itemSchema, message);
+	static object<T extends Record<string, Schema>>(shape: T, message?: string): ObjectSchema<T> {
+		return new ObjectSchema(shape, message);
 	}
 
-	static optional<T>(schema: Schema<T>): ReturnType<typeof SchemaComposite.optional<T>> {
-		return SchemaComposite.optional(schema);
+	static array<T>(itemSchema: Schema<T>, message?: string): ArraySchema<T> {
+		return new ArraySchema(itemSchema, message);
 	}
 
-	static nullable<T>(schema: Schema<T>): ReturnType<typeof SchemaComposite.nullable<T>> {
-		return SchemaComposite.nullable(schema);
+	static optional<T>(schema: Schema<T>): OptionalSchema<T> {
+		return new OptionalSchema(schema);
 	}
 
-	static union<T extends [Schema, Schema, ...Schema[]]>(
-		...args: [...T, string?]
-	): ReturnType<typeof SchemaComposite.union<T>> {
-		return SchemaComposite.union(...args);
+	static nullable<T>(schema: Schema<T>): NullableSchema<T> {
+		return new NullableSchema(schema);
 	}
 
-	static enum<T extends [string, ...string[]]>(
-		values: T,
-		message?: string,
-	): ReturnType<typeof SchemaComposite.enum<T>> {
-		return SchemaComposite.enum(values, message);
+	static union<T extends [Schema, Schema, ...Schema[]]>(schemas: T, message?: string): UnionSchema<T> {
+		return new UnionSchema(schemas, message);
 	}
 
-	static any(): ReturnType<typeof SchemaPrimordials.any> {
-		return SchemaPrimordials.any();
+	static enum<T extends [string, ...string[]]>(values: T, message?: string): EnumSchema<T[number]> {
+		return new EnumSchema(values, message);
 	}
 
-	static type<T>(
-		// deno-lint-ignore no-explicit-any
-		typeConstructor: new (...args: any[]) => T,
-		message?: string,
-	): ReturnType<typeof SchemaPrimordials.type<T>> {
-		return SchemaPrimordials.type(typeConstructor, message);
+	static any(): AnySchema {
+		return new AnySchema();
 	}
 }
 

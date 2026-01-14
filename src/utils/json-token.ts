@@ -1,5 +1,5 @@
-import { CryptoHelper } from "../helpers/CryptoHelper.ts";
-import { StringHelper } from "../helpers/StringHelper.ts";
+import { CryptoHelper } from "../helpers/crypto.ts";
+import { StringHelper } from "../helpers/string.ts";
 
 export class JsonToken {
 	constructor(private readonly secret: string) {}

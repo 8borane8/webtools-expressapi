@@ -1,4 +1,12 @@
-import { CryptoHelper } from "./CryptoHelper.ts";
+import { CryptoHelper } from "./crypto.ts";
+
+const htmlEscapes: Array<[string, string]> = [
+	["&", "&amp;"],
+	["<", "&lt;"],
+	[">", "&gt;"],
+	['"', "&quot;"],
+	["'", "&#39;"],
+];
 
 export abstract class StringHelper {
 	public static generateRandomString(
@@ -39,38 +47,12 @@ export abstract class StringHelper {
 			.replace(/^-+|-+$/g, ""); // Remove dashes at the beginning/end
 	}
 
-	public static capitalize(str: string): string {
-		return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-	}
-
-	public static toPascalCase(str: string): string {
-		return str
-			.replace(/(?:^\w|[A-Z]|\b\w)/g, (word) => word.toUpperCase())
-			.replace(/\s+/g, "");
-	}
-
 	public static escapeHtml(str: string): string {
-		const htmlEscapes: Record<string, string> = {
-			"&": "&amp;",
-			"<": "&lt;",
-			">": "&gt;",
-			'"': "&quot;",
-			"'": "&#39;",
-		};
-
-		return str.replace(/[&<>"']/g, (match) => htmlEscapes[match]);
+		return htmlEscapes.reduce((result, [char, entity]) => result.replaceAll(char, entity), str);
 	}
 
 	public static unescapeHtml(str: string): string {
-		const htmlUnescapes: Record<string, string> = {
-			"&amp;": "&",
-			"&lt;": "<",
-			"&gt;": ">",
-			"&quot;": '"',
-			"&#39;": "'",
-		};
-
-		return str.replace(/&(amp|lt|gt|quot|#39);/g, (match) => htmlUnescapes[match] || match);
+		return htmlEscapes.reduce((result, [char, entity]) => result.replaceAll(entity, char), str);
 	}
 
 	public static clean(str: string): string {

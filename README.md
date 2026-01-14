@@ -1,8 +1,8 @@
-<h1 align="center">Welcome on ExpressAPI !</h1>
+<h1 align="center">ExpressAPI</h1>
 
 <p align="center">
     <em>
-        ExpressAPI is a small, simple, and ultrafast library for building web APIs, built on Web Standards for Deno.
+        A minimal, fast, and type-safe web framework for building APIs with Deno.
     </em>
 </p>
 
@@ -20,16 +20,13 @@
 
 ## ✨ Features
 
-- Minimal and intuitive API inspired by Express.js
-- Built-in routing with support for all HTTP methods
-- Built-in file serving, redirection, and JSON handling
-- Request body validation with schema system
-- Middleware support (global and per-route)
-- Typed request and response objects
-- Type-safe generic data context
-- Simple JWT-like token generation and verification
-- Secure random string generation
-- Cryptographic helper utilities
+- **Minimal API** - Intuitive Express.js-inspired syntax
+- **Type Safety** - Full TypeScript support with type inference
+- **Built-in Validation** - Schema-based request validation
+- **Middleware Support** - Global and per-route middleware
+- **Modular Routing** - Organize routes with nested routers
+- **Web Standards** - Built on native Deno Web APIs
+- **Zero Dependencies** - Lightweight and fast
 
 ## 📦 Installation
 
@@ -37,1268 +34,833 @@
 deno add jsr:@webtools/expressapi
 ```
 
-## 🧠 Quick Start
+## 🚀 Quick Start
 
 ```ts
 import { HttpServer } from "jsr:@webtools/expressapi";
 
 const server = new HttpServer(5050);
 
+server.get("/", (req, res) => {
+	return res.json({ message: "Hello, World!" });
+});
+
+server.post("/users", (req, res) => {
+	const user = req.body;
+	return res.status(201).json({ created: true, user });
+});
+
+// Server starts automatically
+```
+
+## 📖 Table of Contents
+
+- [Getting Started](#getting-started)
+- [Routing](#routing)
+- [Request & Response](#request--response)
+- [Middleware](#middleware)
+- [Schema Validation](#schema-validation)
+- [Advanced Usage](#advanced-usage)
+- [API Reference](#api-reference)
+- [Examples](#examples)
+
+## 🎯 Getting Started
+
+### Creating a Server
+
+```ts
+import { HttpServer } from "jsr:@webtools/expressapi";
+
+// Default port is 5050
+const server = new HttpServer(5050);
+
+// Server starts automatically
+console.log("Server running on http://localhost:5050");
+```
+
+### Basic Route
+
+```ts
 server.get("/hello", (req, res) => {
-	return res.status(200).json({ message: "Hello, world!" });
-});
-
-server.post("/echo", (req, res) => {
-	return res.json({ received: req.body });
+	return res.json({ message: "Hello, World!" });
 });
 ```
 
-## 🧱 Core Classes
+## 🛣️ Routing
 
-### `HttpServer<TData>`
+### HTTP Methods
 
-Main entry point to create and start a web server. Supports generic type `TData` for type-safe request context.
-
-#### Constructor
+ExpressAPI supports all standard HTTP methods:
 
 ```ts
-new HttpServer<TData = any>(port?: number)
-```
+server.get("/users", (req, res) => {
+	return res.json({ users: [] });
+});
 
-- `port` (optional): Port number to listen on. Defaults to `5050`.
-- `TData` (optional): Generic type for `req.data` property. Defaults to `any`.
+server.post("/users", (req, res) => {
+	return res.status(201).json({ created: true });
+});
 
-#### Example with Typed Data
+server.put("/users/:id", (req, res) => {
+	return res.json({ updated: true, id: req.params.id });
+});
 
-```ts
-interface UserData {
-	userId: number;
-	username: string;
-}
+server.patch("/users/:id", (req, res) => {
+	return res.json({ patched: true, id: req.params.id });
+});
 
-const server = new HttpServer<UserData>(5050);
-
-server.use(async (req, res) => {
-	// req.data is typed as UserData
-	req.data.userId = 123;
-	req.data.username = "john";
+server.delete("/users/:id", (req, res) => {
+	return res.status(204).send(null);
 });
 ```
 
-#### Methods
+### Route Parameters
 
-##### `.get<T>(url, requestListener, middlewares?)`
-
-Register a GET route.
-
-- `url`: Route pattern (supports `:param` for path parameters)
-- `requestListener`: Handler function `(req, res) => Response | Promise<Response | void> | void`
-- `middlewares` (optional): Array of middleware functions
+Access dynamic route segments via `req.params`:
 
 ```ts
 server.get("/users/:id", (req, res) => {
-	const userId = req.params.id; // string
+	const userId = req.params.id;
 	return res.json({ userId });
 });
-```
 
-##### `.post<T>(url, requestListener, middlewares?, schema?)`
-
-Register a POST route with optional body validation.
-
-```ts
-const createUserSchema = z.object({
-	name: z.string("Name is required").min(3),
-	email: z.string().email(),
-	age: z.number().min(18),
-});
-
-server.post(
-	"/users",
-	async (req, res) => {
-		// req.body is typed and validated
-		return res.json({ created: req.body });
-	},
-	[],
-	createUserSchema,
-);
-```
-
-##### `.put<T>(url, requestListener, middlewares?, schema?)`
-
-Register a PUT route.
-
-##### `.patch<T>(url, requestListener, middlewares?, schema?)`
-
-Register a PATCH route.
-
-##### `.delete<T>(url, requestListener, middlewares?, schema?)`
-
-Register a DELETE route.
-
-##### `.use(middleware)`
-
-Register a global middleware that runs before all routes.
-
-```ts
-server.use(async (req, res) => {
-	console.log(`[${req.method}] ${req.url}`);
-	// Return nothing to continue
-});
-
-server.use(async (req, res) => {
-	if (!req.headers.get("authorization")) {
-		return res.status(401).json({ error: "Unauthorized" });
-	}
-});
-```
-
-##### `.notFound(handler)`
-
-Set a custom handler for 404 responses.
-
-```ts
-server.notFound((req, res) => {
-	return res.status(404).json({
-		error: "Route not found",
-		path: req.url,
+server.get("/users/:userId/posts/:postId", (req, res) => {
+	return res.json({
+		userId: req.params.userId,
+		postId: req.params.postId,
 	});
 });
 ```
 
-### `HttpRequest<TBody, TData>`
+### Query Parameters
 
-Encapsulates the incoming HTTP request with typed body and data context.
-
-#### Properties
-
-##### `.url: string`
-
-The request URL pathname (without query string).
+Query strings are automatically parsed:
 
 ```ts
-// GET /users/123?page=1
-req.url; // "/users/123"
-```
-
-##### `.method: HttpMethods`
-
-The HTTP method (GET, POST, PUT, PATCH, DELETE).
-
-```ts
-if (req.method === HttpMethods.POST) {
-	// Handle POST request
-}
-```
-
-##### `.headers: Headers`
-
-Standard Web API `Headers` object.
-
-```ts
-const auth = req.headers.get("authorization");
-const contentType = req.headers.get("content-type");
-```
-
-##### `.body: TBody`
-
-Parsed request body. Automatically parsed based on `Content-Type`:
-
-- `application/json` → JSON object
-- `multipart/form-data` → FormData as object
-- `application/x-www-form-urlencoded` → URL-encoded as object
-- Otherwise → string
-
-```ts
-// With schema validation
-server.post("/users", async (req, res) => {
-	// req.body is typed according to schema
-	console.log(req.body.name); // string
+server.get("/search", (req, res) => {
+	const { q, page = "1", limit = "10" } = req.query;
+	return res.json({
+		query: q,
+		page: parseInt(page),
+		limit: parseInt(limit),
+	});
 });
 ```
 
-##### `.query: Record<string, string>`
+## 📥 Request & Response
 
-URL query parameters as key-value pairs.
+### Request Object
 
-```ts
-// GET /search?q=hello&page=2
-req.query.q; // "hello"
-req.query.page; // "2"
-```
-
-##### `.params: Record<string, string>`
-
-Route path parameters extracted from URL pattern.
+The `HttpRequest` object provides access to request data:
 
 ```ts
-// Route: /users/:id/posts/:postId
-// Request: /users/123/posts/456
-req.params.id; // "123"
-req.params.postId; // "456"
-```
+server.post("/data", (req, res) => {
+	// Request properties
+	console.log(req.url); // Pathname
+	console.log(req.method); // HTTP method
+	console.log(req.headers); // Headers object
+	console.log(req.body); // Parsed body
+	console.log(req.query); // Query parameters
+	console.log(req.params); // Route parameters
+	console.log(req.cookies); // Parsed cookies
+	console.log(req.ip); // Client IP address
+	console.log(req.raw); // Original Request object
 
-##### `.cookies: Record<string, string>`
+	// Custom data context
+	req.data = { userId: 123 };
 
-Parsed cookies from `Cookie` header.
-
-```ts
-// Cookie: sessionId=abc123; theme=dark
-req.cookies.sessionId; // "abc123"
-req.cookies.theme; // "dark"
-```
-
-##### `.ip: string | null`
-
-Client IP address extracted from `X-Forwarded-For` header, or `null` if not available.
-
-```ts
-const clientIp = req.ip; // "192.168.1.1" or null
-```
-
-##### `.data: TData`
-
-Generic data context. Typed when using `HttpServer<TData>`.
-
-```ts
-interface AppData {
-	user?: { id: number; name: string };
-}
-
-const server = new HttpServer<AppData>(5050);
-
-server.use(async (req, res) => {
-	req.data.user = { id: 1, name: "John" };
-});
-
-server.get("/profile", (req, res) => {
-	// req.data.user is typed as { id: number; name: string } | undefined
-	return res.json(req.data.user);
+	return res.json({ success: true });
 });
 ```
 
-##### `.raw: Request`
-
-Raw Web API `Request` object for advanced use cases.
+### Response Methods
 
 ```ts
-const stream = req.raw.body; // ReadableStream
+// JSON response (default status 200)
+res.json({ message: "Success" });
+
+// Custom status code
+res.status(201).json({ created: true });
+
+// Text response
+res.status(200).send("Plain text");
+
+// Redirect
+res.redirect("/new-location", 301);
+
+// Send file
+res.sendFile("/path/to/file.pdf");
+
+// Custom headers
+res.setHeader("X-Custom-Header", "value")
+	.setHeader("X-Another", "value2")
+	.json({ data: "..." });
+
+// Set content type
+res.type("xml").send("<root></root>");
 ```
 
-### `HttpResponse`
+### Request Body Parsing
 
-Utility class to build and send HTTP responses.
-
-#### Methods
-
-##### `.status(code: number): HttpResponse`
-
-Set the HTTP status code.
+The body is automatically parsed based on `Content-Type`:
 
 ```ts
-res.status(201).json({ id: 1 });
-```
+// JSON (application/json)
+server.post("/json", (req, res) => {
+	const { name, email } = req.body;
+	return res.json({ name, email });
+});
 
-##### `.setHeader(name: string, value: string): HttpResponse`
+// Form data (multipart/form-data)
+server.post("/upload", (req, res) => {
+	const formData = req.body; // Object with form fields
+	return res.json({ received: formData });
+});
 
-Set a custom response header.
-
-```ts
-res.setHeader("X-Custom-Header", "value");
-```
-
-##### `.type(type: string): HttpResponse`
-
-Set `Content-Type` header based on file extension or MIME type.
-
-```ts
-res.type("json").send('{"key": "value"}');
-res.type("html").send("<h1>Hello</h1>");
-```
-
-##### `.size(size: number): HttpResponse`
-
-Set `Content-Length` header.
-
-```ts
-res.size(1024).send(data);
-```
-
-##### `.json<T>(body: T): Response`
-
-Send JSON response with `Content-Type: application/json`.
-
-```ts
-res.json({ success: true, data: { id: 1 } });
-```
-
-##### `.send(body: BodyInit | null): Response`
-
-Send raw response body.
-
-```ts
-res.send("Hello World");
-res.send(new Blob([data]));
-res.send(null); // Empty body
-```
-
-##### `.redirect(url: string, code?: number): Response`
-
-Send redirect response. Default status code is `307`.
-
-```ts
-res.redirect("/login", 301); // Permanent redirect
-res.redirect("/dashboard"); // Temporary redirect (307)
-```
-
-##### `.sendFile(path: string): Response`
-
-Serve a local file. Automatically sets `Content-Type` and `Content-Length`.
-
-```ts
-res.sendFile("./public/index.html");
-```
-
-### `Router<TData>`
-
-Router class for organizing routes. Can be mounted on `HttpServer` with or without a prefix.
-
-#### Constructor
-
-```ts
-new Router<TData = any>()
-```
-
-- `TData` (optional): Generic type for `req.data` property. Defaults to `any`.
-
-#### Methods
-
-All HTTP methods are available: `.get()`, `.post()`, `.put()`, `.patch()`, `.delete()`
-
-##### `.use(middleware)`
-
-Register a middleware for all routes in this router.
-
-```ts
-const router = new Router();
-router.use((req, res) => {
-	console.log("Router middleware");
+// URL encoded (application/x-www-form-urlencoded)
+server.post("/form", (req, res) => {
+	const data = req.body; // Parsed as object
+	return res.json({ data });
 });
 ```
 
-##### `.use(prefix, router)`
+## 🔌 Middleware
 
-Mount a router with a prefix.
+### Global Middleware
+
+Global middleware runs before all routes:
 
 ```ts
-const apiRouter = new Router();
-apiRouter.get("/status", (req, res) => {
-	return res.json({ status: "ok" });
+// Logging middleware
+server.use((req, res) => {
+	console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
 });
 
-server.use("/api", apiRouter);
-// Route becomes: /api/status
-```
+// CORS middleware
+server.use((req, res) => {
+	res.setHeader("Access-Control-Allow-Origin", "*");
+	res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
 
-##### `.use(router)`
-
-Mount a router without a prefix.
-
-```ts
-const adminRouter = new Router();
-adminRouter.get("/dashboard", (req, res) => {
-	return res.json({ dashboard: true });
-});
-
-server.use(adminRouter);
-// Route becomes: /dashboard
-```
-
-##### `.addRoute(route)`
-
-Add a route object directly.
-
-```ts
-router.addRoute({
-	url: "/custom",
-	method: HttpMethods.PUT,
-	middlewares: [],
-	requestListener: handler,
-	schema: mySchema,
+	if (req.method === "OPTIONS") {
+		return res.status(200).send(null);
+	}
 });
 ```
 
-##### `.addRoutes(routes)`
+### Route-Specific Middleware
 
-Add multiple routes at once.
-
-```ts
-router.addRoutes([route1, route2, route3]);
-```
-
-### `HttpMethods`
-
-Enumeration of supported HTTP methods.
+Apply middleware to specific routes:
 
 ```ts
-enum HttpMethods {
-	GET = "GET",
-	POST = "POST",
-	PUT = "PUT",
-	PATCH = "PATCH",
-	DELETE = "DELETE",
-}
+const authenticate = (req, res) => {
+	const token = req.headers.get("authorization");
+	if (!token || !token.startsWith("Bearer ")) {
+		return res.status(401).json({ error: "Unauthorized" });
+	}
+	// Attach user data to request
+	req.data = { userId: 123 };
+};
+
+const requireAdmin = (req, res) => {
+	if (req.data?.role !== "admin") {
+		return res.status(403).json({ error: "Forbidden" });
+	}
+};
+
+server.get(
+	"/admin/users",
+	(req, res) => {
+		return res.json({ users: [] });
+	},
+	[authenticate, requireAdmin],
+);
 ```
 
-## 📋 Schema Validation
+### Middleware Chain
 
-ExpressAPI includes a powerful schema validation system similar to Zod, accessible via the `z` export.
+Middleware executes in order. Return a response to stop the chain:
 
-### Basic Usage
+```ts
+const middleware1 = (req, res) => {
+	console.log("Middleware 1");
+	// Continue to next middleware
+};
+
+const middleware2 = (req, res) => {
+	console.log("Middleware 2");
+	// Stop chain by returning response
+	return res.status(403).json({ error: "Blocked" });
+};
+
+const middleware3 = (req, res) => {
+	// This won't execute if middleware2 returns
+	console.log("Middleware 3");
+};
+```
+
+## ✅ Schema Validation
+
+ExpressAPI includes a powerful schema validation system for type-safe request validation.
+
+### Basic Validation
 
 ```ts
 import { z } from "jsr:@webtools/expressapi";
 
-const schema = z.object({
-	name: z.string().min(3),
-	email: z.string().email(),
-	age: z.number().int().min(18),
-});
-
 server.post(
 	"/users",
-	async (req, res) => {
-		// req.body is validated and typed
-		return res.json({ user: req.body });
+	(req, res) => {
+		// req.body is now typed and validated
+		const { name, email, age } = req.body;
+		return res.status(201).json({ user: { name, email, age } });
 	},
 	[],
-	schema,
+	{
+		body: z.object({
+			name: z.string().min(3).max(50),
+			email: z.string().email(),
+			age: z.optional(z.number().int().positive()),
+		}),
+	},
 );
 ```
 
-### Primitive Schemas
-
-#### `z.string(message?)`
-
-Validates and converts input to string.
+### Validating Query Parameters
 
 ```ts
-z.string(); // Accepts any value, converts to string
-z.string("Name is required"); // Custom error message
-```
-
-**Methods:**
-
-- `.min(length, message?)`: Minimum length
-  ```ts
-  z.string().min(3, "At least 3 characters");
-  ```
-
-- `.max(length, message?)`: Maximum length
-  ```ts
-  z.string().max(100, "Maximum 100 characters");
-  ```
-
-- `.regex(pattern, message?)`: Regular expression validation (can be called multiple times)
-
-```ts
-z.string().regex(/^[A-Z]/, "Must start with uppercase")
-	.regex(/\d/, "Must contain a digit");
-```
-
-- `.email(message?)`: Email format validation
-  ```ts
-  z.string().email("Invalid email format");
-  ```
-
-- `.url(message?)`: URL format validation
-  ```ts
-  z.string().url("Invalid URL format");
-  ```
-
-**Example:**
-
-```ts
-const schema = z.string("Name is required")
-	.min(3, "Too short")
-	.max(50, "Too long")
-	.email("Invalid email format");
-```
-
-#### `z.number(message?)`
-
-Validates and converts input to number. Accepts string numbers and converts them.
-
-```ts
-z.number(); // Accepts "123" or 123 → 123
-z.number("Must be a number"); // Custom error message
-```
-
-**Methods:**
-
-- `.min(value, message?)`: Minimum value
-  ```ts
-  z.number().min(0, "Must be positive or zero");
-  ```
-
-- `.max(value, message?)`: Maximum value
-  ```ts
-  z.number().max(100, "Maximum 100");
-  ```
-
-- `.int(message?)`: Must be an integer (no decimals)
-  ```ts
-  z.number().int("Must be an integer");
-  ```
-
-- `.positive(message?)`: Must be greater than 0
-  ```ts
-  z.number().positive("Must be positive");
-  ```
-
-- `.negative(message?)`: Must be less than 0
-  ```ts
-  z.number().negative("Must be negative");
-  ```
-
-**Example:**
-
-```ts
-const schema = z.number("Age is required")
-	.int("Must be an integer")
-	.min(18, "Must be 18 or older")
-	.max(120, "Invalid age");
-```
-
-#### `z.boolean(message?)`
-
-Validates and converts input to boolean. Accepts:
-
-- `"true"`, `"1"` → `true`
-- `"false"`, `"0"` → `false`
-
-```ts
-z.boolean(); // Accepts "true", "false", "1", "0", true, false
-z.boolean("Must be a boolean");
-```
-
-**Example:**
-
-```ts
-const schema = z.boolean("Must be true or false");
-```
-
-#### `z.any()`
-
-Accepts any value without validation.
-
-```ts
-z.any(); // Accepts anything
-```
-
-### Composite Schemas
-
-#### `z.object(shape, message?)`
-
-Validates an object with a specific shape.
-
-```ts
-const schema = z.object({
-	name: z.string(),
-	age: z.number(),
-}, "Must be an object");
-```
-
-**Example:**
-
-```ts
-const userSchema = z.object({
-	name: z.string("Name is required").min(3),
-	email: z.string().email("Invalid email"),
-	age: z.number("Age is required").int().min(18),
-	active: z.boolean(),
-});
-```
-
-#### `z.array(itemSchema, message?)`
-
-Validates an array where each item matches the schema.
-
-```ts
-const schema = z.array(z.string(), "Must be an array");
-```
-
-**Methods:**
-
-- `.min(length, message?)`: Minimum array length
-  ```ts
-  z.array(z.string()).min(1, "At least one item");
-  ```
-
-- `.max(length, message?)`: Maximum array length
-  ```ts
-  z.array(z.string()).max(10, "Maximum 10 items");
-  ```
-
-**Example:**
-
-```ts
-const schema = z.array(z.string("Each item must be a string"))
-	.min(1, "At least one item")
-	.max(100, "Maximum 100 items");
-```
-
-#### `z.optional(schema)`
-
-Makes a field optional (undefined if not provided).
-
-```ts
-const schema = z.object({
-	name: z.string(),
-	email: z.optional(z.string().email()), // email is optional
-});
-```
-
-**Example:**
-
-```ts
-const schema = z.object({
-	name: z.string(),
-	nickname: z.optional(z.string()), // Can be undefined
-});
-```
-
-#### `z.nullable(schema)`
-
-Allows null values. For boolean schemas, `false` and `"false"` are converted to `null`.
-
-```ts
-const schema = z.object({
-	description: z.nullable(z.string()), // Can be null
-	active: z.nullable(z.boolean()), // false or "false" → null
-});
-```
-
-**Example:**
-
-```ts
-const schema = z.nullable(z.string());
-schema.parse(null); // null
-schema.parse("false"); // null (if boolean schema)
-schema.parse(""); // null (if boolean schema)
-```
-
-#### `z.union(...schemas, message?)`
-
-Validates that the value matches at least one of the provided schemas.
-
-```ts
-const schema = z.union(
-	z.string(),
-	z.number(),
-	"Must be a string or number",
+server.get(
+	"/users",
+	(req, res) => {
+		// req.query is validated and typed
+		const { page, limit } = req.query;
+		return res.json({ page, limit });
+	},
+	[],
+	{
+		query: z.object({
+			page: z.optional(z.number().int().positive()),
+			limit: z.optional(z.number().int().positive().max(100)),
+		}),
+	},
 );
 ```
 
-**Example:**
+### Validating Route Parameters
 
 ```ts
-const idSchema = z.union(
-	z.string(),
-	z.number(),
-	"ID must be a string or number",
-);
-
-// Accepts "123" or 123
-```
-
-#### `z.enum(values, message?)`
-
-Validates that the value is one of the provided string values.
-
-```ts
-const schema = z.enum(
-	["admin", "user", "guest"],
-	"Invalid role",
+server.get(
+	"/users/:id",
+	(req, res) => {
+		// req.params.id is validated as UUID
+		return res.json({ userId: req.params.id });
+	},
+	[],
+	{
+		params: z.object({
+			id: z.string().uuid(),
+		}),
+	},
 );
 ```
 
-**Example:**
+### Validation Error Response
 
-```ts
-const roleSchema = z.enum(
-	["admin", "user", "moderator"],
-	"Role must be admin, user, or moderator",
-);
-```
+Invalid data automatically returns a 400 response:
 
-### Schema Methods
-
-#### `.parse(data): T`
-
-Parse and validate data. Throws `ValidationError` on failure.
-
-```ts
-try {
-	const result = schema.parse(req.body);
-} catch (error) {
-	if (error instanceof ValidationError) {
-		console.log(error.issues);
-	}
-}
-```
-
-#### `.safeParse(data): ValidationResult<T>`
-
-Parse and validate data without throwing. Returns `{ success: true, data: T }` or
-`{ success: false, error: ValidationError }`.
-
-```ts
-const result = schema.safeParse(req.body);
-if (result.success) {
-	console.log(result.data);
-} else {
-	console.log(result.error.issues);
-}
-```
-
-### Error Handling
-
-Validation errors contain detailed information:
-
-```ts
+```json
 {
-	success: false,
-	error: "400 Bad Request.",
-	issues: [
+	"success": false,
+	"error": "400 Bad Request.",
+	"details": [
 		{
-			path: ["name"], // Field path
-			message: "String must be at least 3 characters",
-			code: "too_small"
-		},
-		{
-			path: ["email"],
-			message: "Invalid email format",
-			code: "invalid_string"
+			"path": ["email"],
+			"message": "Invalid email format",
+			"code": "invalid_string"
 		}
 	]
 }
 ```
 
-### Custom Error Messages
+### Schema Types
 
-You can provide custom error messages at multiple levels:
+#### String Schemas
 
-1. **Schema-level default message:**
-   ```ts
-   z.string("Name is required");
-   ```
+```ts
+z.string(); // Basic string
+z.string().min(3); // Minimum length
+z.string().max(100); // Maximum length
+z.string().length(10); // Exact length
+z.string().email(); // Email validation
+z.string().uuid(); // UUID validation
+z.string().url(); // URL validation
+z.string().regex(/^[A-Z]+$/); // Regex pattern
+z.string().startsWith("prefix"); // Must start with
+z.string().endsWith("suffix"); // Must end with
+```
 
-2. **Method-level message (overrides default):**
-   ```ts
-   z.string("Name is required")
-   	.min(3, "Too short"); // Overrides default
-   ```
+#### Number Schemas
 
-3. **Built-in defaults:** If no message is provided, sensible defaults are used.
+```ts
+z.number(); // Basic number
+z.number().int(); // Integer only
+z.number().positive(); // Must be positive
+z.number().negative(); // Must be negative
+z.number().min(0); // Minimum value
+z.number().max(100); // Maximum value
+```
 
-### Complete Example
+#### Composite Schemas
+
+```ts
+// Objects
+z.object({
+	name: z.string(),
+	age: z.number(),
+	email: z.string().email(),
+});
+
+// Arrays
+z.array(z.string()); // Array of strings
+z.array(z.string()).min(1); // At least 1 item
+z.array(z.string()).max(10); // At most 10 items
+z.array(z.string()).length(5); // Exactly 5 items
+
+// Optional and nullable
+z.optional(z.string()); // string | undefined
+z.nullable(z.string()); // string | null
+
+// Unions
+z.union([z.string(), z.number()]); // string | number
+
+// Enums
+z.enum(["red", "green", "blue"]); // "red" | "green" | "blue"
+
+// Any
+z.any(); // Any value
+```
+
+## 🚀 Advanced Usage
+
+### Modular Routers
+
+Organize routes into separate modules:
+
+```ts
+// routes/users.ts
+import { Router, z } from "jsr:@webtools/expressapi";
+
+export const usersRouter = new Router();
+
+usersRouter.get("/", (req, res) => {
+	return res.json({ users: [] });
+});
+
+usersRouter.post(
+	"/",
+	(req, res) => {
+		return res.status(201).json({ user: req.body });
+	},
+	[],
+	{
+		body: z.object({
+			name: z.string().min(3),
+			email: z.string().email(),
+		}),
+	},
+);
+
+usersRouter.get("/:id", (req, res) => {
+	return res.json({ userId: req.params.id });
+});
+```
+
+```ts
+// server.ts
+import { HttpServer } from "jsr:@webtools/expressapi";
+import { usersRouter } from "./routes/users.ts";
+
+const server = new HttpServer(5050);
+
+// Mount router with prefix
+server.use("/api/users", usersRouter);
+// Routes: /api/users, /api/users/:id
+```
+
+### Custom 404 Handler
+
+```ts
+server.notFound((req, res) => {
+	return res.status(404).json({
+		error: "Not Found",
+		path: req.url,
+		method: req.method,
+	});
+});
+```
+
+### Type-Safe Data Context
+
+Use generics for type-safe request data:
+
+```ts
+interface AppData {
+	userId: number;
+	role: string;
+}
+
+const server = new HttpServer<AppData>(5050);
+
+server.use((req, res) => {
+	// Type-safe data assignment
+	req.data = { userId: 123, role: "admin" };
+});
+
+server.get("/profile", (req, res) => {
+	// req.data is typed as AppData
+	const { userId, role } = req.data;
+	return res.json({ userId, role });
+});
+```
+
+### Error Handling
+
+```ts
+server.use((req, res) => {
+	try {
+		// Your code
+	} catch (error) {
+		return res.status(500).json({
+			error: "Internal Server Error",
+			message: error.message,
+		});
+	}
+});
+```
+
+## 📚 API Reference
+
+### HttpServer
+
+```ts
+class HttpServer<TData = DataDefault> extends Router<TData>
+```
+
+**Methods:**
+
+- `get<TSchemas>(url, handler, middlewares?, schemas?)` - Register GET route
+- `post<TSchemas>(url, handler, middlewares?, schemas?)` - Register POST route
+- `put<TSchemas>(url, handler, middlewares?, schemas?)` - Register PUT route
+- `patch<TSchemas>(url, handler, middlewares?, schemas?)` - Register PATCH route
+- `delete<TSchemas>(url, handler, middlewares?, schemas?)` - Register DELETE route
+- `use(middleware)` - Add global middleware
+- `use(prefix, router)` - Mount router with prefix
+- `notFound(handler)` - Custom 404 handler
+
+### Router
+
+```ts
+class Router<TData = DataDefault>
+```
+
+Same methods as `HttpServer` but doesn't start a server.
+
+### HttpRequest
+
+```ts
+class HttpRequest<TData, TRouteTypes>
+```
+
+**Properties:**
+
+- `url: string` - Request pathname
+- `method: HttpMethods` - HTTP method
+- `headers: Headers` - Request headers
+- `body: TRouteTypes["body"]` - Parsed request body
+- `query: TRouteTypes["query"]` - Query parameters
+- `params: TRouteTypes["params"]` - Route parameters
+- `cookies: Record<string, string>` - Parsed cookies
+- `ip: string | null` - Client IP address
+- `data: TData` - Custom data context
+- `raw: Request` - Original Request object
+
+### HttpResponse
+
+```ts
+class HttpResponse
+```
+
+**Methods:**
+
+- `status(code: number): HttpResponse` - Set status code
+- `setHeader(name: string, value: string): HttpResponse` - Set header
+- `type(type: string): HttpResponse` - Set content type
+- `size(size: number): HttpResponse` - Set content length
+- `json(body: unknown): Response` - Send JSON response
+- `send(body: BodyInit | null): Response` - Send response
+- `redirect(url: string, code?: number): Response` - Redirect
+- `sendFile(path: string): Response` - Send file
+
+### Helpers
+
+#### CryptoHelper
+
+```ts
+CryptoHelper.sha256(payload: string): Promise<string>
+CryptoHelper.sha512(payload: string): Promise<string>
+CryptoHelper.secureRandom(): number
+```
+
+#### StringHelper
+
+```ts
+StringHelper.generateRandomString(pattern?: string, chars?: string): string
+StringHelper.encodeBase64Url(data: string): string
+StringHelper.decodeBase64Url(data: string): string
+StringHelper.slugify(str: string): string
+StringHelper.escapeHtml(str: string): string
+StringHelper.unescapeHtml(str: string): string
+StringHelper.clean(str: string): string
+```
+
+#### JsonToken
+
+`JsonToken` provides a simple JWT-like token system for signing and verifying JSON payloads. It uses SHA-256 for
+signature generation and Base64URL encoding.
+
+**Format:** `{base64url(payload)}.{signature}`
+
+```ts
+class JsonToken {
+	constructor(secret: string);
+	sign(payload: unknown): Promise<string>;
+	verify<T>(token: string): Promise<T | null>;
+}
+```
+
+**Basic Usage:**
+
+```ts
+import { JsonToken } from "jsr:@webtools/expressapi";
+
+// Initialize with a secret key
+const token = new JsonToken("your-secret-key");
+
+// Sign a payload
+const payload = { userId: 123, email: "user@example.com", role: "admin" };
+const signedToken = await token.sign(payload);
+// Returns: "eyJ1c2VySWQiOjEyMywiZW1haWwiOiJ1c2VyQGV4YW1wbGUuY29tIiwicm9sZSI6ImFkbWluIn0.signature"
+
+// Verify and decode
+const decoded = await token.verify<typeof payload>(signedToken);
+// Returns: { userId: 123, email: "user@example.com", role: "admin" }
+
+// Invalid token returns null
+const invalid = await token.verify("invalid.token");
+// Returns: null
+```
+
+**How it works:**
+
+1. **Signing:** The payload is JSON stringified, Base64URL encoded, then concatenated with the secret and hashed with
+   SHA-256 to create the signature.
+2. **Verification:** The token is split into payload and signature. The payload is re-hashed with the secret and
+   compared to the provided signature using constant-time comparison to prevent timing attacks.
+3. **Security:** Uses constant-time string comparison to prevent timing attacks. Invalid tokens return `null` instead of
+   throwing errors.
+
+**Example: Token-based Authentication**
+
+```ts
+import { HttpServer, JsonToken, z } from "jsr:@webtools/expressapi";
+
+const server = new HttpServer(5050);
+const token = new JsonToken(Deno.env.get("JWT_SECRET") || "default-secret");
+
+// Issue token
+server.post(
+	"/auth/login",
+	async (req, res) => {
+		const { email, password } = req.body;
+
+		// Validate credentials (example)
+		const user = await validateUser(email, password);
+		if (!user) {
+			return res.status(401).json({ error: "Invalid credentials" });
+		}
+
+		// Create token with user data
+		const jwt = await token.sign({
+			userId: user.id,
+			email: user.email,
+			role: user.role,
+			iat: Date.now(),
+		});
+
+		return res.json({ token: jwt });
+	},
+	[],
+	{
+		body: z.object({
+			email: z.string().email(),
+			password: z.string().min(6),
+		}),
+	},
+);
+
+// Verify token middleware
+const verifyToken = async (req, res) => {
+	const authHeader = req.headers.get("authorization");
+	if (!authHeader?.startsWith("Bearer ")) {
+		return res.status(401).json({ error: "Missing or invalid authorization header" });
+	}
+
+	const jwt = authHeader.slice(7);
+	const payload = await token.verify<{
+		userId: number;
+		email: string;
+		role: string;
+		iat: number;
+	}>(jwt);
+
+	if (!payload) {
+		return res.status(401).json({ error: "Invalid or expired token" });
+	}
+
+	// Attach user data to request
+	req.data = {
+		userId: payload.userId,
+		email: payload.email,
+		role: payload.role,
+	};
+};
+
+// Protected route
+server.get("/profile", verifyToken, (req, res) => {
+	return res.json({
+		userId: req.data.userId,
+		email: req.data.email,
+		role: req.data.role,
+	});
+});
+```
+
+**Note:** This is a simplified token system. For production use cases requiring expiration, refresh tokens, or advanced
+features, consider using a full JWT library.
+
+## 💡 Examples
+
+### REST API Example
 
 ```ts
 import { HttpServer, z } from "jsr:@webtools/expressapi";
 
 const server = new HttpServer(5050);
 
-const createUserSchema = z.object({
-	name: z.string("Name is required")
-		.min(3, "Name must contain at least 3 characters")
-		.max(50, "Name cannot exceed 50 characters"),
-	email: z.string("Email is required")
-		.email("Invalid email format"),
-	age: z.number("Age is required")
-		.int("Age must be an integer")
-		.min(18, "Must be 18 or older")
-		.max(120, "Invalid age"),
-	role: z.enum(["user", "admin"], "Invalid role"),
-	tags: z.array(z.string())
-		.min(1, "At least one tag required")
-		.max(10, "Maximum 10 tags"),
-	active: z.boolean(),
-	bio: z.optional(z.string().max(500)),
+// GET /users
+server.get("/users", (req, res) => {
+	return res.json({ users: [] });
 });
 
+// GET /users/:id
+server.get("/users/:id", (req, res) => {
+	return res.json({ user: { id: req.params.id } });
+});
+
+// POST /users
 server.post(
 	"/users",
-	async (req, res) => {
-		// req.body is fully typed and validated
-		const { name, email, age, role, tags, active, bio } = req.body;
-
-		return res.status(201).json({
-			success: true,
-			user: { name, email, age, role, tags, active, bio },
-		});
+	(req, res) => {
+		return res.status(201).json({ user: req.body });
 	},
 	[],
-	createUserSchema,
+	{
+		body: z.object({
+			name: z.string().min(3),
+			email: z.string().email(),
+		}),
+	},
 );
-```
 
-## 🔐 Token & Security
-
-### `JsonToken`
-
-A lightweight JWT-like utility to sign and verify JSON payloads using SHA-256 and a shared secret.
-
-#### Constructor
-
-```ts
-new JsonToken(secret: string)
-```
-
-- `secret`: Secret key used for signing and verification
-
-#### Methods
-
-##### `.sign<T>(jsonPayload: T): Promise<string>`
-
-Sign a JSON payload and return a token.
-
-```ts
-const jwt = new JsonToken("my-secret-key");
-
-const token = await jwt.sign({ userId: 123, username: "john" });
-// Returns: "base64EncodedPayload.signature"
-```
-
-##### `.verify<T>(token: string): Promise<T | null>`
-
-Verify and decode a token. Returns `null` if invalid.
-
-```ts
-const jwt = new JsonToken("my-secret-key");
-
-const data = await jwt.verify(token);
-if (data) {
-	console.log(data.userId); // 123
-	console.log(data.username); // "john"
-} else {
-	console.log("Invalid token");
-}
-```
-
-#### Complete Example
-
-```ts
-import { JsonToken } from "jsr:@webtools/expressapi";
-
-const jwt = new JsonToken(Deno.env.get("JWT_SECRET") || "default-secret");
-
-// Sign
-const token = await jwt.sign({ userId: 123, role: "admin" });
-
-// Verify
-const payload = await jwt.verify(token);
-if (payload) {
-	console.log(payload.userId, payload.role);
-}
-```
-
-### `CryptoHelper`
-
-Cryptographic utility functions for hashing and randomness.
-
-#### Methods
-
-##### `.hash(payload: string, algorithm: DigestAlgorithm): Promise<string>`
-
-Generic hash function supporting multiple algorithms.
-
-- `payload`: String to hash
-- `algorithm`: `"SHA-1" | "SHA-256" | "SHA-384" | "SHA-512"`
-
-```ts
-const hash = await CryptoHelper.hash("password123", "SHA-256");
-```
-
-##### `.sha256(payload: string): Promise<string>`
-
-SHA-256 hash (most common).
-
-```ts
-const hash = await CryptoHelper.sha256("password123");
-// Returns: "ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94"
-```
-
-##### `.sha512(payload: string): Promise<string>`
-
-SHA-512 hash.
-
-```ts
-const hash = await CryptoHelper.sha512("password123");
-```
-
-##### `.secureRandom(): number`
-
-Returns a cryptographically secure random float between 0 and 1.
-
-```ts
-const random = CryptoHelper.secureRandom(); // 0.0 to 1.0
-```
-
-#### Complete Example
-
-```ts
-import { CryptoHelper } from "jsr:@webtools/expressapi";
-
-// Hash passwords
-const passwordHash = await CryptoHelper.sha256("user-password");
-
-// Generate secure random
-const randomValue = CryptoHelper.secureRandom();
-```
-
-## 🔤 String Utilities
-
-### `StringHelper`
-
-Collection of string manipulation utilities.
-
-#### Methods
-
-##### `.generateRandomString(pattern?, chars?): string`
-
-Generate a random string based on a pattern.
-
-- `pattern` (optional): Pattern where `X` is replaced by random chars. Default: `"XXXX-XXXX-XXXX-XXXX"`
-- `chars` (optional): Character set to use. Default: `"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"`
-
-```ts
-StringHelper.generateRandomString();
-// "A3B2-C4D1-E5F6-G7H8"
-
-StringHelper.generateRandomString("XXXX-XXXX", "0123456789");
-// "1234-5678"
-
-StringHelper.generateRandomString("XXX-XXX-XXX", "ABC");
-// "ABC-CBA-ABC"
-```
-
-##### `.encodeBase64Url(data: string): string`
-
-Encode string to Base64URL (URL-safe Base64).
-
-```ts
-const encoded = StringHelper.encodeBase64Url("Hello World");
-// "SGVsbG8gV29ybGQ"
-```
-
-##### `.decodeBase64Url(data: string): string`
-
-Decode Base64URL string.
-
-```ts
-const decoded = StringHelper.decodeBase64Url("SGVsbG8gV29ybGQ");
-// "Hello World"
-```
-
-##### `.slugify(str: string): string`
-
-Convert string to URL-friendly slug.
-
-```ts
-StringHelper.slugify("Hello World!");
-// "hello-world"
-
-StringHelper.slugify("Café & Restaurant");
-// "cafe-restaurant"
-```
-
-##### `.capitalize(str: string): string`
-
-Capitalize first letter, lowercase the rest.
-
-```ts
-StringHelper.capitalize("hello WORLD");
-// "Hello world"
-```
-
-##### `.toPascalCase(str: string): string`
-
-Convert string to PascalCase.
-
-```ts
-StringHelper.toPascalCase("hello world");
-// "HelloWorld"
-
-StringHelper.toPascalCase("user name");
-// "UserName"
-```
-
-##### `.escapeHtml(str: string): string`
-
-Escape HTML special characters.
-
-```ts
-StringHelper.escapeHtml("<script>alert('xss')</script>");
-// "&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;"
-```
-
-##### `.unescapeHtml(str: string): string`
-
-Unescape HTML entities.
-
-```ts
-StringHelper.unescapeHtml("&lt;div&gt;");
-// "<div>"
-```
-
-##### `.clean(str: string): string`
-
-Remove extra whitespace and trim.
-
-```ts
-StringHelper.clean("  hello    world  ");
-// "hello world"
-```
-
-#### Complete Example
-
-```ts
-import { StringHelper } from "jsr:@webtools/expressapi";
-
-// Generate IDs
-const sessionId = StringHelper.generateRandomString("XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX");
-
-// URL slugs
-const slug = StringHelper.slugify("My Awesome Article!");
-// "my-awesome-article"
-
-// HTML safety
-const safe = StringHelper.escapeHtml(userInput);
-```
-
-## ✅ Middleware & Validation
-
-### Global Middleware
-
-Register middleware that runs before all routes:
-
-```ts
-server.use(async (req, res) => {
-	console.log(`${req.method} ${req.url}`);
-	// Continue to next middleware/route
+// PUT /users/:id
+server.put("/users/:id", (req, res) => {
+	return res.json({ updated: true, id: req.params.id });
 });
 
-server.use(async (req, res) => {
-	const token = req.headers.get("authorization");
-	if (!token) {
-		return res.status(401).json({ error: "Unauthorized" });
-	}
-	// If no return, continues to next middleware
+// DELETE /users/:id
+server.delete("/users/:id", (req, res) => {
+	return res.status(204).send(null);
 });
 ```
 
-### Route-Specific Middleware
-
-Add middleware to specific routes:
+### Authentication Example
 
 ```ts
-const authMiddleware = async (req, res) => {
-	const token = req.headers.get("authorization");
-	if (!token) {
-		return res.status(401).json({ error: "Unauthorized" });
-	}
-};
+import { HttpServer, JsonToken, z } from "jsr:@webtools/expressapi";
 
-server.get("/protected", async (req, res) => {
-	return res.json({ message: "Protected content" });
-}, [authMiddleware]);
-```
+const server = new HttpServer(5050);
+const token = new JsonToken("your-secret-key");
 
-### Body Validation Middleware
-
-Use `validateBody` function or pass schema directly to route methods:
-
-```ts
-import { validateBody, z } from "jsr:@webtools/expressapi";
-
-const schema = z.object({
-	name: z.string().min(3),
-});
-
-// Method 1: Pass schema to route method
-server.post("/users", handler, [], schema);
-
-// Method 2: Use validateBody manually
-const validateMiddleware = validateBody(schema);
-server.post("/users", handler, [validateMiddleware]);
-```
-
-### Middleware Execution Order
-
-1. Global middlewares (registered with `.use()`)
-2. Route-specific middlewares
-3. Route handler
-
-If any middleware returns a `Response`, execution stops and that response is sent.
-
-## 📚 Types & Interfaces
-
-### `RequestListener<TBody, TData>`
-
-Type for request handlers and middlewares.
-
-```ts
-type RequestListener<TBody = any, TData = any> = (
-	req: HttpRequest<TBody, TData>,
-	res: HttpResponse,
-) => Promise<Response | void> | Response | void;
-```
-
-### `Route<TBody, TData>`
-
-Route interface.
-
-```ts
-interface Route<TBody = any, TData = any> {
-	url: string;
-	method: HttpMethods;
-	middlewares: RequestListener<TBody, TData>[];
-	requestListener: RequestListener<TBody, TData>;
-	schema?: Schema<TBody>;
-}
-```
-
-### `Schema<T>`
-
-Base interface for all schemas.
-
-```ts
-interface Schema<T = unknown> {
-	parse(data: unknown): T;
-	safeParse(data: unknown): ValidationResult<T>;
-}
-```
-
-### `ValidationResult<T>`
-
-Result type for `safeParse`.
-
-```ts
-type ValidationResult<T> =
-	| { success: true; data: T }
-	| { success: false; error: ValidationError };
-```
-
-### `ValidationError`
-
-Error class thrown by schema validation.
-
-```ts
-class ValidationError extends Error {
-	issues: Array<{
-		path: (string | number)[];
-		message: string;
-		code: string;
-	}>;
-}
-```
-
-## 🎯 Complete Example
-
-```ts
-import { CryptoHelper, HttpServer, JsonToken, z } from "jsr:@webtools/expressapi";
-
-interface AppData {
-	user?: { id: number; name: string };
-}
-
-const server = new HttpServer<AppData>(5050);
-const jwt = new JsonToken("my-secret");
-
-// Global middleware
-server.use(async (req, res) => {
-	console.log(`[${req.method}] ${req.url}`);
-});
-
-// Auth middleware
-const authMiddleware = async (req, res) => {
-	const token = req.headers.get("authorization");
-	if (!token) {
-		return res.status(401).json({ error: "Unauthorized" });
-	}
-
-	const payload = await jwt.verify<{ userId: number }>(token);
-	if (!payload) {
-		return res.status(401).json({ error: "Invalid token" });
-	}
-
-	req.data.user = { id: payload.userId, name: "John" };
-};
-
-// Schemas
-const loginSchema = z.object({
-	email: z.string("Email is required").email("Invalid email"),
-	password: z.string("Password is required").min(8),
-});
-
-const createPostSchema = z.object({
-	title: z.string("Title is required").min(3).max(100),
-	content: z.string("Content is required").min(10),
-	tags: z.array(z.string()).min(1).max(5),
-	published: z.boolean(),
-});
-
-// Routes
+// Login
 server.post(
 	"/login",
 	async (req, res) => {
 		const { email, password } = req.body;
 
-		const passwordHash = await CryptoHelper.sha256(password);
-		// Verify password...
+		// Validate credentials
+		if (email === "user@example.com" && password === "password") {
+			const jwt = await token.sign({ userId: 123, email });
+			return res.json({ token: jwt });
+		}
 
-		const token = await jwt.sign({ userId: 123 });
-		return res.json({ token });
+		return res.status(401).json({ error: "Invalid credentials" });
 	},
 	[],
-	loginSchema,
-);
-
-server.get("/posts/:id", async (req, res) => {
-	const postId = req.params.id;
-	// Fetch post...
-	return res.json({ id: postId, title: "Post" });
-});
-
-server.post(
-	"/posts",
-	async (req, res) => {
-		// req.body is validated
-		// req.data.user is typed
-		return res.status(201).json({
-			post: req.body,
-			author: req.data.user,
-		});
+	{
+		body: z.object({
+			email: z.string().email(),
+			password: z.string().min(6),
+		}),
 	},
-	[authMiddleware],
-	createPostSchema,
 );
 
-server.get("/profile", async (req, res) => {
-	return res.json({ user: req.data.user });
-}, [authMiddleware]);
+// Protected route
+const authMiddleware = async (req, res) => {
+	const authHeader = req.headers.get("authorization");
+	if (!authHeader?.startsWith("Bearer ")) {
+		return res.status(401).json({ error: "Unauthorized" });
+	}
 
-server.notFound((req, res) => {
-	return res.status(404).json({
-		error: "Not Found",
-		path: req.url,
-	});
+	const jwt = authHeader.slice(7);
+	const payload = await token.verify<{ userId: number }>(jwt);
+
+	if (!payload) {
+		return res.status(401).json({ error: "Invalid token" });
+	}
+
+	req.data = { userId: payload.userId };
+};
+
+server.get("/profile", authMiddleware, (req, res) => {
+	return res.json({ userId: req.data.userId });
 });
 ```
 
+### File Upload Example
+
+```ts
+server.post("/upload", (req, res) => {
+	const formData = req.body;
+	const file = formData.file; // File object from FormData
+
+	if (!file) {
+		return res.status(400).json({ error: "No file provided" });
+	}
+
+	// Process file...
+	return res.json({ uploaded: true, filename: file.name });
+});
 ```
+
 ## License
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
-```

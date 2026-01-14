@@ -1,36 +1,14 @@
-import { BaseSchema } from "./BaseSchema.ts";
-
-export abstract class SchemaPrimordials {
-	static string(message?: string): StringSchema {
-		return new StringSchema(message);
-	}
-
-	static number(message?: string): NumberSchema {
-		return new NumberSchema(message);
-	}
-
-	static boolean(message?: string): BooleanSchema {
-		return new BooleanSchema(message);
-	}
-
-	static any(): AnySchema {
-		return new AnySchema();
-	}
-
-	static type<T>(
-		// deno-lint-ignore no-explicit-any
-		typeConstructor: new (...args: any[]) => T,
-		message?: string,
-	): TypeSchema<T> {
-		return new TypeSchema(typeConstructor, message);
-	}
-}
+import { BaseSchema } from "./base.ts";
 
 export class StringSchema extends BaseSchema<string> {
 	private minLength?: { value: number; message: string };
 	private maxLength?: { value: number; message: string };
+	private exactLength?: { value: number; message: string };
+	private startsWithConstraint?: { prefix: string; message: string };
+	private endsWithConstraint?: { suffix: string; message: string };
 	private patterns: Array<{ pattern: RegExp; message: string }> = [];
 	private isEmail?: string;
+	private isUuid?: string;
 	private isUrl?: string;
 
 	constructor(private readonly message?: string) {
@@ -47,6 +25,21 @@ export class StringSchema extends BaseSchema<string> {
 		return this;
 	}
 
+	length(length: number, message: string = this.message ?? `String must be exactly ${length} characters`): this {
+		this.exactLength = { value: length, message };
+		return this;
+	}
+
+	startsWith(prefix: string, message: string = this.message ?? `String must start with "${prefix}"`): this {
+		this.startsWithConstraint = { prefix, message };
+		return this;
+	}
+
+	endsWith(suffix: string, message: string = this.message ?? `String must end with "${suffix}"`): this {
+		this.endsWithConstraint = { suffix, message };
+		return this;
+	}
+
 	regex(pattern: RegExp, message: string = this.message ?? "String does not match required pattern"): this {
 		this.patterns.push({ pattern, message });
 		return this;
@@ -54,6 +47,11 @@ export class StringSchema extends BaseSchema<string> {
 
 	email(message: string = this.message ?? "Invalid email format"): this {
 		this.isEmail = message;
+		return this;
+	}
+
+	uuid(message: string = this.message ?? "Invalid UUID format"): this {
+		this.isUuid = message;
 		return this;
 	}
 
@@ -73,6 +71,18 @@ export class StringSchema extends BaseSchema<string> {
 			throw this.createError([], this.maxLength.message, "too_big");
 		}
 
+		if (this.exactLength && str.length !== this.exactLength.value) {
+			throw this.createError([], this.exactLength.message, "invalid_length");
+		}
+
+		if (this.startsWithConstraint && !str.startsWith(this.startsWithConstraint.prefix)) {
+			throw this.createError([], this.startsWithConstraint.message, "invalid_string");
+		}
+
+		if (this.endsWithConstraint && !str.endsWith(this.endsWithConstraint.suffix)) {
+			throw this.createError([], this.endsWithConstraint.message, "invalid_string");
+		}
+
 		for (const { pattern, message } of this.patterns) {
 			if (!pattern.test(str)) {
 				throw this.createError([], message, "invalid_string");
@@ -80,16 +90,22 @@ export class StringSchema extends BaseSchema<string> {
 		}
 
 		if (this.isEmail !== undefined) {
-			const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+			const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 			if (!emailRegex.test(str)) {
 				throw this.createError([], this.isEmail, "invalid_string");
 			}
 		}
 
+		if (this.isUuid !== undefined) {
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+			if (!uuidRegex.test(str)) {
+				throw this.createError([], this.isUuid, "invalid_string");
+			}
+		}
+
 		if (this.isUrl !== undefined) {
-			try {
-				new URL(str);
-			} catch {
+			const urlRegex = /^https?:\/\/.+/;
+			if (!urlRegex.test(str)) {
 				throw this.createError([], this.isUrl, "invalid_string");
 			}
 		}
@@ -135,11 +151,10 @@ export class NumberSchema extends BaseSchema<number> {
 	}
 
 	override parse(data: unknown): number {
-		const str = String(data).trim();
-		const num = this.isInt ? parseInt(str, 10) : parseFloat(str);
+		const num = Number(data);
 
 		if (isNaN(num)) {
-			const errorMsg = this.message ?? `Cannot convert "${str}" to number`;
+			const errorMsg = this.message ?? `Cannot convert "${data}" to number`;
 			throw this.createError([], errorMsg, "invalid_type");
 		}
 
@@ -173,13 +188,13 @@ export class BooleanSchema extends BaseSchema<boolean> {
 	}
 
 	override parse(data: unknown): boolean {
-		const str = String(data).trim().toLowerCase();
+		const str = String(data).toLowerCase();
 
-		if (str === "true" || str === "1") {
+		if (str === "true" || str === "1" || str === "on") {
 			return true;
 		}
 
-		if (str === "false" || str === "0") {
+		if (str === "false" || str === "0" || str === "off") {
 			return false;
 		}
 
@@ -194,21 +209,49 @@ export class AnySchema extends BaseSchema<unknown> {
 	}
 }
 
-export class TypeSchema<T> extends BaseSchema<T> {
-	constructor(
-		// deno-lint-ignore no-explicit-any
-		private readonly typeConstructor: new (...args: any[]) => T,
-		private readonly message?: string,
-	) {
+export class FileSchema extends BaseSchema<File> {
+	private minSizeConstraint?: { value: number; message: string };
+	private maxSizeConstraint?: { value: number; message: string };
+	private allowedTypes?: { types: string[]; message: string };
+	private allowedExtensions?: { extensions: string[]; message: string };
+
+	constructor(private readonly message?: string) {
 		super();
 	}
 
-	override parse(data: unknown): T {
-		if (!(data instanceof this.typeConstructor)) {
-			const errorMsg = this.message ??
-				`Expected instance of ${this.typeConstructor.name}, got ${typeof data}`;
+	minSize(size: number, message: string = this.message ?? `File size must be at least ${size} bytes`): this {
+		this.minSizeConstraint = { value: size, message };
+		return this;
+	}
+
+	maxSize(size: number, message: string = this.message ?? `File size must be at most ${size} bytes`): this {
+		this.maxSizeConstraint = { value: size, message };
+		return this;
+	}
+
+	type(types: string[], message: string = this.message ?? `File type must be one of: ${types.join(", ")}`): this {
+		this.allowedTypes = { types, message };
+		return this;
+	}
+
+	override parse(data: unknown): File {
+		if (!(data instanceof File)) {
+			const errorMsg = this.message ?? `Expected File, got ${typeof data}`;
 			throw this.createError([], errorMsg, "invalid_type");
 		}
-		return data as T;
+
+		if (this.minSizeConstraint && data.size < this.minSizeConstraint.value) {
+			throw this.createError([], this.minSizeConstraint.message, "too_small");
+		}
+
+		if (this.maxSizeConstraint && data.size > this.maxSizeConstraint.value) {
+			throw this.createError([], this.maxSizeConstraint.message, "too_big");
+		}
+
+		if (this.allowedTypes && !this.allowedTypes.types.find((type) => data.type.startsWith(type))) {
+			throw this.createError([], this.allowedTypes.message, "invalid_type");
+		}
+
+		return data;
 	}
 }

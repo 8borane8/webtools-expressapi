@@ -1,16 +1,16 @@
 import { contentType } from "@std/media-types";
 
 export class HttpResponse {
-	private code: number = 200;
 	private readonly headers: Map<string, string> = new Map();
-
-	public setHeader(name: string, value: string): HttpResponse {
-		this.headers.set(name, value);
-		return this;
-	}
+	private code: number = 200;
 
 	public status(code: number): HttpResponse {
 		this.code = code;
+		return this;
+	}
+
+	public setHeader(name: string, value: string): HttpResponse {
+		this.headers.set(name, value);
 		return this;
 	}
 

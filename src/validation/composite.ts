@@ -1,53 +1,16 @@
-import { BaseSchema, type Schema, ValidationError } from "./BaseSchema.ts";
-
-export abstract class SchemaComposite {
-	static object<T extends Record<string, Schema>>(shape: T, message?: string): ObjectSchema<T> {
-		return new ObjectSchema(shape, message);
-	}
-
-	static array<T>(itemSchema: Schema<T>, message?: string): ArraySchema<T> {
-		return new ArraySchema(itemSchema, message);
-	}
-
-	static optional<T>(schema: Schema<T>): OptionalSchema<T> {
-		return new OptionalSchema(schema);
-	}
-
-	static nullable<T>(schema: Schema<T>): NullableSchema<T> {
-		return new NullableSchema(schema);
-	}
-
-	static union<T extends [Schema, Schema, ...Schema[]]>(...args: [...T, string?]): UnionSchema<T> {
-		const lastArg = args[args.length - 1];
-		const hasMessage = typeof lastArg === "string";
-		const schemas = (hasMessage ? args.slice(0, -1) : args) as T;
-		const message = hasMessage ? lastArg : undefined;
-		return new UnionSchema(schemas, message);
-	}
-
-	static enum<T extends [string, ...string[]]>(values: T, message?: string): EnumSchema<T[number]> {
-		return new EnumSchema(values, message);
-	}
-}
+import { BaseSchema, type Schema, ValidationError } from "./base.ts";
 
 export class ObjectSchema<T extends Record<string, Schema>> extends BaseSchema<
-	{
-		[K in keyof T]: T[K] extends Schema<infer U> ? U : never;
-	}
+	{ [K in keyof T]: T[K] extends Schema<infer U> ? U : never }
 > {
 	private message?: string;
 
-	constructor(
-		private readonly shape: T,
-		message?: string,
-	) {
+	constructor(private readonly shape: T, message?: string) {
 		super();
 		this.message = message;
 	}
 
-	override parse(data: unknown): {
-		[K in keyof T]: T[K] extends Schema<infer U> ? U : never;
-	} {
+	override parse(data: unknown): { [K in keyof T]: T[K] extends Schema<infer U> ? U : never } {
 		if (typeof data !== "object" || data === null || Array.isArray(data)) {
 			const errorMsg = this.message ?? `Expected object, got ${typeof data}`;
 			throw this.createError([], errorMsg, "invalid_type");
@@ -86,11 +49,9 @@ export class ArraySchema<T> extends BaseSchema<T[]> {
 	private message?: string;
 	private minLength?: { value: number; message: string };
 	private maxLength?: { value: number; message: string };
+	private exactLength?: { value: number; message: string };
 
-	constructor(
-		private readonly itemSchema: Schema<T>,
-		message?: string,
-	) {
+	constructor(private readonly itemSchema: Schema<T>, message?: string) {
 		super();
 		this.message = message;
 	}
@@ -102,6 +63,11 @@ export class ArraySchema<T> extends BaseSchema<T[]> {
 
 	max(length: number, message: string = this.message ?? `Array must have at most ${length} items`): this {
 		this.maxLength = { value: length, message };
+		return this;
+	}
+
+	length(length: number, message: string = this.message ?? `Array must have exactly ${length} items`): this {
+		this.exactLength = { value: length, message };
 		return this;
 	}
 
@@ -117,6 +83,10 @@ export class ArraySchema<T> extends BaseSchema<T[]> {
 
 		if (this.maxLength && data.length > this.maxLength.value) {
 			throw this.createError([], this.maxLength.message, "too_big");
+		}
+
+		if (this.exactLength && data.length !== this.exactLength.value) {
+			throw this.createError([], this.exactLength.message, "invalid_length");
 		}
 
 		const errors: Array<{ path: (string | number)[]; message: string; code: string }> = [];
@@ -146,33 +116,10 @@ export class ArraySchema<T> extends BaseSchema<T[]> {
 	}
 }
 
-export class OptionalSchema<T> extends BaseSchema<T | undefined> {
-	constructor(private readonly schema: Schema<T>) {
-		super();
-	}
-
-	override parse(data: unknown): T | undefined {
-		return data === undefined ? undefined : this.schema.parse(data);
-	}
-}
-
-export class NullableSchema<T> extends BaseSchema<T | null> {
-	constructor(private readonly schema: Schema<T>) {
-		super();
-	}
-
-	override parse(data: unknown): T | null {
-		return data ? this.schema.parse(data) : null;
-	}
-}
-
 export class UnionSchema<T extends [Schema, Schema, ...Schema[]]> extends BaseSchema<
 	T[number] extends Schema<infer U> ? U : never
 > {
-	constructor(
-		private readonly schemas: T,
-		private readonly errorMessage?: string,
-	) {
+	constructor(private readonly schemas: T, private readonly errorMessage?: string) {
 		super();
 	}
 
@@ -195,10 +142,7 @@ export class UnionSchema<T extends [Schema, Schema, ...Schema[]]> extends BaseSc
 }
 
 export class EnumSchema<T extends string> extends BaseSchema<T> {
-	constructor(
-		private readonly values: readonly string[],
-		private readonly message?: string,
-	) {
+	constructor(private readonly values: readonly string[], private readonly message?: string) {
 		super();
 	}
 
@@ -209,5 +153,25 @@ export class EnumSchema<T extends string> extends BaseSchema<T> {
 			throw this.createError([], errorMsg, "invalid_enum_value");
 		}
 		return str as T;
+	}
+}
+
+export class OptionalSchema<T> extends BaseSchema<T | undefined> {
+	constructor(private readonly schema: Schema<T>) {
+		super();
+	}
+
+	override parse(data: unknown): T | undefined {
+		if (data !== undefined) return this.schema.parse(data);
+	}
+}
+
+export class NullableSchema<T> extends BaseSchema<T | null> {
+	constructor(private readonly schema: Schema<T>) {
+		super();
+	}
+
+	override parse(data: unknown): T | null {
+		return data ? this.schema.parse(data) : null;
 	}
 }
