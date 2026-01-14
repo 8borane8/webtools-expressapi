@@ -1,9 +1,8 @@
-import type { DataDefault } from "@webtools/expressapi";
-import { HttpMethods } from "../http/methods.ts";
+import { type DataDefault, HttpRequest } from "../http/request.ts";
 import type { RequestListener } from "../routing/listener.ts";
-import type { Route } from "../routing/route.ts";
 import { HttpResponse } from "../http/response.ts";
-import { HttpRequest } from "../http/request.ts";
+import { HttpMethods } from "../http/methods.ts";
+import type { Route } from "../routing/route.ts";
 import { Router } from "../routing/router.ts";
 
 export class HttpServer<TData = DataDefault> extends Router<TData> {

@@ -2,7 +2,7 @@ import { AnySchema, BooleanSchema, FileSchema, NumberSchema, StringSchema } from
 import { ArraySchema, EnumSchema, NullableSchema, ObjectSchema, OptionalSchema, UnionSchema } from "./composite.ts";
 import type { Schema } from "./base.ts";
 
-export abstract class SchemaBuilder {
+abstract class SchemaBuilder {
 	static string(message?: string): StringSchema {
 		return new StringSchema(message);
 	}
