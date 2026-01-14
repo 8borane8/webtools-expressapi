@@ -13,8 +13,8 @@ export type RouteTypes = {
 };
 
 export type RouteTypesDefault = {
-	query: Record<string, string>;
-	params: Record<string, string>;
+	query: Record<string, string | undefined>;
+	params: Record<string, string | undefined>;
 	// deno-lint-ignore no-explicit-any
 	body: any;
 };
@@ -35,7 +35,7 @@ export class HttpRequest<TData = DataDefault, TRouteTypes extends RouteTypes = R
 	public readonly cookies: Record<string, string> = {};
 	public readonly ip: string | null = null;
 
-	public data: TData = {} as TData;
+	public data: TData = Object.create(null);
 
 	constructor(
 		public readonly url: string,

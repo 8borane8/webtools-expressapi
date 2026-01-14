@@ -13,10 +13,6 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 			error: "404 Not Found.",
 		});
 
-	constructor(private readonly port = 5050) {
-		super();
-	}
-
 	public notFound(handler: RequestListener): this {
 		this.notFoundHandler = handler;
 		return this;
@@ -28,6 +24,87 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 			success: false,
 			error: "404 Not Found.",
 		});
+	}
+
+	public listen(port: number): void {
+		Deno.serve({ port }, this.requestListener.bind(this));
+	}
+
+	private async requestListener(request: Request): Promise<Response> {
+		const url = new URL(request.url);
+		const method = request.method as HttpMethods;
+		const body = method === HttpMethods.GET ? null : await this.parseRequestBody(request.clone());
+
+		const normalizedPathname = StringHelper.normalizePath(url.pathname);
+
+		const req = new HttpRequest(
+			normalizedPathname,
+			method,
+			request.headers,
+			body,
+			request,
+		);
+
+		const queryParams = this.extractQueryParams(url.searchParams);
+		Object.assign(req.query, queryParams);
+
+		const res = new HttpResponse();
+
+		const globalMiddlewareResponse = await this.executeMiddlewares(this.middlewares, req, res);
+		if (globalMiddlewareResponse) return globalMiddlewareResponse;
+
+		if (request.method === "OPTIONS") {
+			return res.status(200).send(null);
+		}
+
+		const route = this.findMatchingRoute(method, normalizedPathname);
+		if (!route) return await this.handleNotFound(req, res);
+
+		const routeParams = this.extractRouteParams(normalizedPathname, route.url);
+		Object.assign(req.params, routeParams);
+
+		if (route.schemas) {
+			if (route.schemas.query) {
+				const queryResult = route.schemas.query.safeParse(req.query);
+				if (!queryResult.success) {
+					return res.status(400).json({
+						success: false,
+						error: "400 Bad Request.",
+						details: queryResult.error.issues,
+					});
+				}
+				Object.assign(req.query, queryResult.data);
+			}
+
+			if (route.schemas.params) {
+				const paramsResult = route.schemas.params.safeParse(req.params);
+				if (!paramsResult.success) {
+					return res.status(400).json({
+						success: false,
+						error: "400 Bad Request.",
+						details: paramsResult.error.issues,
+					});
+				}
+				Object.assign(req.params, paramsResult.data);
+			}
+
+			if (route.schemas.body) {
+				const bodyResult = route.schemas.body.safeParse(req.body);
+				if (!bodyResult.success) {
+					return res.status(400).json({
+						success: false,
+						error: "400 Bad Request.",
+						details: bodyResult.error.issues,
+					});
+				}
+				req.body = bodyResult.data;
+			}
+		}
+
+		const routeMiddlewareResponse = await this.executeMiddlewares(route.middlewares, req, res);
+		if (routeMiddlewareResponse) return routeMiddlewareResponse;
+
+		return await route.requestListener(req, res) || await this.handleNotFound(req, res);
 	}
 
 	private async parseRequestBody(request: Request): Promise<unknown> {
@@ -79,7 +156,6 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 		if (!routes) return null;
 
 		return routes.find((route) => {
-			// Transform the route url to a regex to match the pathname
 			const pattern = route.url.replace(/:[^\/]+/g, "([^/]+)");
 			const regex = new RegExp(`^${pattern}$`);
 			return regex.test(pathname);
@@ -96,89 +172,5 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 			if (response) return response;
 		}
 		return null;
-	}
-
-	private async requestListener(request: Request): Promise<Response> {
-		const url = new URL(request.url);
-		const method = request.method as HttpMethods;
-		const body = method === HttpMethods.GET ? null : await this.parseRequestBody(request.clone());
-
-		// Normalize pathname by removing trailing slash (except for root)
-		const normalizedPathname = StringHelper.normalizePath(url.pathname);
-
-		const req = new HttpRequest(
-			normalizedPathname,
-			method,
-			request.headers,
-			body,
-			request,
-		);
-
-		const queryParams = this.extractQueryParams(url.searchParams);
-		Object.assign(req.query, queryParams);
-
-		const res = new HttpResponse();
-
-		const globalMiddlewareResponse = await this.executeMiddlewares(this.middlewares, req, res);
-		if (globalMiddlewareResponse) return globalMiddlewareResponse;
-
-		if (request.method === "OPTIONS") {
-			return res.status(200).send(null);
-		}
-
-		const route = this.findMatchingRoute(method, normalizedPathname);
-		if (!route) return await this.handleNotFound(req, res);
-
-		const routeParams = this.extractRouteParams(normalizedPathname, route.url);
-		Object.assign(req.params, routeParams);
-
-		if (route.schemas) {
-			if (route.schemas.query) {
-				const queryResult = route.schemas.query.safeParse(req.query);
-				if (!queryResult.success) {
-					return res.status(400).json({
-						success: false,
-						error: "400 Bad Request.",
-						details: queryResult.error.issues,
-					});
-				}
-				Object.assign(req.query, queryResult.data);
-			}
-
-			if (route.schemas.params) {
-				const paramsResult = route.schemas.params.safeParse(req.params);
-				if (!paramsResult.success) {
-					return res.status(400).json({
-						success: false,
-						error: "Invalid route parameters",
-						details: paramsResult.error.issues,
-					});
-				}
-				Object.assign(req.params, paramsResult.data);
-			}
-
-			if (route.schemas.body) {
-				const bodyResult = route.schemas.body.safeParse(req.body);
-				if (!bodyResult.success) {
-					return res.status(400).json({
-						success: false,
-						error: "Invalid request body",
-						details: bodyResult.error.issues,
-					});
-				}
-				req.body = bodyResult.data;
-			}
-		}
-
-		if (route.middlewares) {
-			const routeMiddlewareResponse = await this.executeMiddlewares(route.middlewares, req, res);
-			if (routeMiddlewareResponse) return routeMiddlewareResponse;
-		}
-
-		return await route.requestListener(req, res) || await this.handleNotFound(req, res);
-	}
-
-	public listen(): void {
-		Deno.serve({ port: this.port }, this.requestListener.bind(this));
 	}
 }

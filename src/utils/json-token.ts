@@ -1,5 +1,6 @@
 import { CryptoHelper } from "../helpers/crypto.ts";
 import { StringHelper } from "../helpers/string.ts";
+import type { Schema } from "../validation/base.ts";
 
 export class JsonToken {
 	constructor(private readonly secret: string) {}
@@ -28,7 +29,7 @@ export class JsonToken {
 	}
 
 	// deno-lint-ignore no-explicit-any
-	public async verify<T = any>(token: string): Promise<T | null> {
+	public async verify<T = any>(token: string, schema?: Schema<T>): Promise<T | null> {
 		try {
 			const [payload, signature] = token.split(".");
 			if (!payload || !signature) return null;
@@ -41,7 +42,9 @@ export class JsonToken {
 			}
 
 			const decodedPayload = StringHelper.decodeBase64Url(payload);
-			return JSON.parse(decodedPayload) as T;
+			const payloadObject = JSON.parse(decodedPayload);
+
+			return schema ? schema.parse(payloadObject) : payloadObject;
 		} catch {
 			return null;
 		}

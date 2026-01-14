@@ -39,7 +39,7 @@ deno add jsr:@webtools/expressapi
 ```ts
 import { HttpServer } from "jsr:@webtools/expressapi";
 
-const server = new HttpServer(5050);
+const server = new HttpServer();
 
 server.get("/", (req, res) => {
 	return res.json({ message: "Hello, World!" });
@@ -50,7 +50,7 @@ server.post("/users", (req, res) => {
 	return res.status(201).json({ created: true, user });
 });
 
-server.listen();
+server.listen(5050);
 ```
 
 ## 📖 Table of Contents
@@ -71,11 +71,11 @@ server.listen();
 ```ts
 import { HttpServer } from "jsr:@webtools/expressapi";
 
-// Default port is 5050
-const server = new HttpServer(5050);
+// Create server instance
+const server = new HttpServer();
 
-// Start the server
-server.listen();
+// Start the server on port 5050
+server.listen(5050);
 console.log("Server running on http://localhost:5050");
 ```
 
@@ -512,13 +512,13 @@ usersRouter.get("/:id", (req, res) => {
 import { HttpServer } from "jsr:@webtools/expressapi";
 import { usersRouter } from "./routes/users.ts";
 
-const server = new HttpServer(5050);
+const server = new HttpServer();
 
 // Mount router (prefix already applied)
 server.use(usersRouter);
 // Routes: /api/users, /api/users/:id
 
-server.listen();
+server.listen(5050);
 ```
 
 #### Option 2: Prefix on Mount
@@ -543,13 +543,13 @@ usersRouter.get("/:id", (req, res) => {
 import { HttpServer } from "jsr:@webtools/expressapi";
 import { usersRouter } from "./routes/users.ts";
 
-const server = new HttpServer(5050);
+const server = new HttpServer();
 
 // Mount router with prefix
 server.use("/api/users", usersRouter);
 // Routes: /api/users, /api/users/:id
 
-server.listen();
+server.listen(5050);
 ```
 
 #### Option 3: Combined Prefixes
@@ -589,7 +589,7 @@ interface AppData {
 	role: string;
 }
 
-const server = new HttpServer<AppData>(5050);
+const server = new HttpServer<AppData>();
 
 server.use((req, res) => {
 	// Type-safe data assignment
@@ -602,7 +602,7 @@ server.get("/profile", (req, res) => {
 	return res.json({ userId, role });
 });
 
-server.listen();
+server.listen(5050);
 ```
 
 ### Error Handling
@@ -630,12 +630,12 @@ class HttpServer<TData = DataDefault> extends Router<TData>
 
 **Constructor:**
 
-- `new HttpServer(port?: number)` - Create a server on the specified port (default: 5050). Inherits from `Router` with
-  default prefix "/". The server does not start automatically - call `listen()` to start it.
+- `new HttpServer()` - Create a server instance. Inherits from `Router` with default prefix "/". The server does not
+  start automatically - call `listen(port)` to start it.
 
 **Methods:**
 
-- `listen()` - Start the server and begin listening for requests
+- `listen(port: number)` - Start the server and begin listening for requests on the specified port
 - `get<TSchemas>(url, handler, middlewares?, schemas?)` - Register GET route
 - `post<TSchemas>(url, handler, middlewares?, schemas?)` - Register POST route
 - `put<TSchemas>(url, handler, middlewares?, schemas?)` - Register PUT route
@@ -783,7 +783,7 @@ const invalid = await token.verify("invalid.token");
 ```ts
 import { HttpServer, JsonToken, z } from "jsr:@webtools/expressapi";
 
-const server = new HttpServer(5050);
+const server = new HttpServer();
 const token = new JsonToken(Deno.env.get("JWT_SECRET") || "default-secret");
 
 // Issue token
@@ -845,15 +845,19 @@ const verifyToken = async (req, res) => {
 };
 
 // Protected route
-server.get("/profile", verifyToken, (req, res) => {
-	return res.json({
-		userId: req.data.userId,
-		email: req.data.email,
-		role: req.data.role,
-	});
-});
+server.get(
+	"/profile",
+	(req, res) => {
+		return res.json({
+			userId: req.data.userId,
+			email: req.data.email,
+			role: req.data.role,
+		});
+	},
+	[verifyToken],
+);
 
-server.listen();
+server.listen(5050);
 ```
 
 **Note:** This is a simplified token system. For production use cases requiring expiration, refresh tokens, or advanced
@@ -866,7 +870,7 @@ features, consider using a full JWT library.
 ```ts
 import { HttpServer, z } from "jsr:@webtools/expressapi";
 
-const server = new HttpServer(5050);
+const server = new HttpServer();
 
 // GET /users
 server.get("/users", (req, res) => {
@@ -903,7 +907,7 @@ server.delete("/users/:id", (req, res) => {
 	return res.status(204).send(null);
 });
 
-server.listen();
+server.listen(5050);
 ```
 
 ### Authentication Example
@@ -911,7 +915,7 @@ server.listen();
 ```ts
 import { HttpServer, JsonToken, z } from "jsr:@webtools/expressapi";
 
-const server = new HttpServer(5050);
+const server = new HttpServer();
 const token = new JsonToken("your-secret-key");
 
 // Login
@@ -954,11 +958,15 @@ const authMiddleware = async (req, res) => {
 	req.data = { userId: payload.userId };
 };
 
-server.get("/profile", authMiddleware, (req, res) => {
-	return res.json({ userId: req.data.userId });
-});
+server.get(
+	"/profile",
+	(req, res) => {
+		return res.json({ userId: req.data.userId });
+	},
+	[authMiddleware],
+);
 
-server.listen();
+server.listen(5050);
 ```
 
 ### File Upload Example

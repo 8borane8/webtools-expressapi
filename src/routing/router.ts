@@ -5,8 +5,8 @@ import { StringHelper } from "../helpers/string.ts";
 import { HttpMethods } from "../http/methods.ts";
 
 export class Router<TData = DataDefault> {
-	protected readonly routes: Map<HttpMethods, Route<TData, Schemas>[]> = new Map();
-	protected readonly middlewares: RequestListener[] = [];
+	protected readonly routes: Map<HttpMethods, Route<TData>[]> = new Map();
+	protected readonly middlewares: RequestListener<TData>[] = [];
 
 	constructor(protected readonly prefix: string = "/") {
 		for (const method of Object.values(HttpMethods)) {
@@ -24,14 +24,14 @@ export class Router<TData = DataDefault> {
 			);
 		}
 
-		routes.push({ ...route, url: prefixedUrl } as Route<TData, TSchemas>);
+		routes.push({ ...route, url: prefixedUrl } as Route<TData>);
 		return this;
 	}
 
 	public get<TSchemas extends Schemas>(
 		url: string,
 		requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>,
-		middlewares?: RequestListener<TData, ResolvedSchemas<TSchemas>>[],
+		middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[] = [],
 		schemas?: TSchemas,
 	): this {
 		this.addRoute({
@@ -47,7 +47,7 @@ export class Router<TData = DataDefault> {
 	public post<TSchemas extends Schemas>(
 		url: string,
 		requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>,
-		middlewares?: RequestListener<TData, ResolvedSchemas<TSchemas>>[],
+		middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[] = [],
 		schemas?: TSchemas,
 	): this {
 		this.addRoute({
@@ -63,7 +63,7 @@ export class Router<TData = DataDefault> {
 	public put<TSchemas extends Schemas>(
 		url: string,
 		requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>,
-		middlewares?: RequestListener<TData, ResolvedSchemas<TSchemas>>[],
+		middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[] = [],
 		schemas?: TSchemas,
 	): this {
 		this.addRoute({
@@ -79,7 +79,7 @@ export class Router<TData = DataDefault> {
 	public patch<TSchemas extends Schemas>(
 		url: string,
 		requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>,
-		middlewares?: RequestListener<TData, ResolvedSchemas<TSchemas>>[],
+		middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[] = [],
 		schemas?: TSchemas,
 	): this {
 		this.addRoute({
@@ -95,7 +95,7 @@ export class Router<TData = DataDefault> {
 	public delete<TSchemas extends Schemas>(
 		url: string,
 		requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>,
-		middlewares?: RequestListener<TData, ResolvedSchemas<TSchemas>>[],
+		middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[] = [],
 		schemas?: TSchemas,
 	): this {
 		this.addRoute({
@@ -108,22 +108,22 @@ export class Router<TData = DataDefault> {
 		return this;
 	}
 
-	public use(middleware: RequestListener): this;
-	public use(prefix: string, router: Router): this;
 	public use(router: Router): this;
-	public use(middlewareOrPrefixOrRouter: RequestListener | string | Router, router?: Router): this {
-		if (typeof middlewareOrPrefixOrRouter === "function") {
-			this.middlewares.push(middlewareOrPrefixOrRouter);
+	public use(prefix: string, router: Router): this;
+	public use(middleware: RequestListener<TData>): this;
+	public use(mpr: RequestListener<TData> | string | Router, router?: Router): this {
+		if (typeof mpr === "function") {
+			this.middlewares.push(mpr);
 			return this;
 		}
 
-		if (typeof middlewareOrPrefixOrRouter === "string" && router) {
-			this.mountRouter(router, middlewareOrPrefixOrRouter);
+		if (typeof mpr === "string" && router) {
+			this.mountRouter(router, mpr);
 			return this;
 		}
 
-		if (middlewareOrPrefixOrRouter instanceof Router) {
-			this.mountRouter(middlewareOrPrefixOrRouter);
+		if (mpr instanceof Router) {
+			this.mountRouter(mpr);
 			return this;
 		}
 
@@ -136,7 +136,7 @@ export class Router<TData = DataDefault> {
 				this.addRoute({
 					...route,
 					url: StringHelper.normalizePath(prefix, route.url),
-					middlewares: route.middlewares ? [...router.middlewares, ...route.middlewares] : router.middlewares,
+					middlewares: [...router.middlewares, ...route.middlewares],
 				});
 			}
 		}

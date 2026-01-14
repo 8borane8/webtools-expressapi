@@ -18,7 +18,7 @@ export type ResolvedSchemas<TSchemas extends Schemas> = TSchemas extends undefin
 export interface Route<TData = DataDefault, TSchemas extends Schemas = Schemas> {
 	url: string;
 	method: HttpMethods;
+	middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[];
 	requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>;
-	middlewares?: RequestListener<TData, ResolvedSchemas<TSchemas>>[];
 	schemas?: TSchemas;
 }
