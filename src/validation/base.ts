@@ -24,7 +24,7 @@ export interface Schema<T = unknown> {
 	safeParse(data: unknown): ValidationResult<T>;
 }
 
-export type InferSchemaType<T> = T extends Schema<infer U> ? U : unknown;
+export type InferSchemaType<T> = T extends Schema<infer U> ? U : never;
 
 export abstract class BaseSchema<T> implements Schema<T> {
 	abstract parse(data: unknown): T;

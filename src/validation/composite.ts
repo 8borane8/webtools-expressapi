@@ -1,13 +1,9 @@
-import { BaseSchema, type Schema, ValidationError } from "./base.ts";
+import { BaseSchema, type InferSchemaType, type Schema, ValidationError } from "./base.ts";
 
-export class ObjectSchema<T extends Record<string, Schema>> extends BaseSchema<
-	{ [K in keyof T]: T[K] extends Schema<infer U> ? U : never }
-> {
-	private message?: string;
-
-	constructor(private readonly shape: T, message?: string) {
+export class ObjectSchema<T extends Record<string, Schema>>
+	extends BaseSchema<{ [K in keyof T]: InferSchemaType<T[K]> }> {
+	constructor(private readonly shape: T, private readonly message?: string) {
 		super();
-		this.message = message;
 	}
 
 	override parse(data: unknown): { [K in keyof T]: T[K] extends Schema<infer U> ? U : never } {
@@ -46,12 +42,11 @@ export class ObjectSchema<T extends Record<string, Schema>> extends BaseSchema<
 }
 
 export class ArraySchema<T> extends BaseSchema<T[]> {
-	private message?: string;
 	private minLength?: { value: number; message: string };
 	private maxLength?: { value: number; message: string };
 	private exactLength?: { value: number; message: string };
 
-	constructor(private readonly itemSchema: Schema<T>, message?: string) {
+	constructor(private readonly itemSchema: Schema<T>, private readonly message?: string) {
 		super();
 		this.message = message;
 	}
@@ -116,10 +111,8 @@ export class ArraySchema<T> extends BaseSchema<T[]> {
 	}
 }
 
-export class UnionSchema<T extends [Schema, Schema, ...Schema[]]> extends BaseSchema<
-	T[number] extends Schema<infer U> ? U : never
-> {
-	constructor(private readonly schemas: T, private readonly errorMessage?: string) {
+export class UnionSchema<T extends Schema[]> extends BaseSchema<T[number] extends Schema<infer U> ? U : never> {
+	constructor(private readonly schemas: T, private readonly message?: string) {
 		super();
 	}
 
@@ -127,32 +120,27 @@ export class UnionSchema<T extends [Schema, Schema, ...Schema[]]> extends BaseSc
 		for (const schema of this.schemas) {
 			try {
 				return schema.parse(data) as T[number] extends Schema<infer U> ? U : never;
-			} catch {
-				// Continue to next schema
-			}
+				// deno-lint-ignore no-empty
+			} catch {}
 		}
 
-		const errorMsg = this.errorMessage ?? "Value does not match any of the expected types";
-		throw new ValidationError([{
-			path: [],
-			message: errorMsg,
-			code: "invalid_union",
-		}]);
+		const errorMsg = this.message ?? "Value does not match any of the expected types";
+		throw this.createError([], errorMsg, "invalid_union");
 	}
 }
 
-export class EnumSchema<T extends string> extends BaseSchema<T> {
-	constructor(private readonly values: readonly string[], private readonly message?: string) {
+export class EnumSchema<T extends unknown[]> extends BaseSchema<T[number]> {
+	constructor(private readonly values: T, private readonly message?: string) {
 		super();
 	}
 
-	override parse(data: unknown): T {
-		const str = String(data);
-		if (!this.values.includes(str)) {
-			const errorMsg = this.message ?? `Expected one of [${this.values.join(", ")}], got ${str}`;
+	override parse(data: unknown): T[number] {
+		if (!this.values.includes(data)) {
+			const valuesStr = this.values.map((v) => String(v)).join(", ");
+			const errorMsg = this.message ?? `Expected one of [${valuesStr}], got ${String(data)}`;
 			throw this.createError([], errorMsg, "invalid_enum_value");
 		}
-		return str as T;
+		return data;
 	}
 }
 

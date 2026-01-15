@@ -19,6 +19,10 @@ abstract class SchemaBuilder {
 		return new FileSchema(message);
 	}
 
+	static any(): AnySchema {
+		return new AnySchema();
+	}
+
 	static object<T extends Record<string, Schema>>(shape: T, message?: string): ObjectSchema<T> {
 		return new ObjectSchema(shape, message);
 	}
@@ -27,24 +31,20 @@ abstract class SchemaBuilder {
 		return new ArraySchema(itemSchema, message);
 	}
 
+	static union<T extends Schema[]>(schemas: T, message?: string): UnionSchema<T> {
+		return new UnionSchema(schemas, message);
+	}
+
+	static enum<T extends unknown[]>(values: T, message?: string): EnumSchema<T> {
+		return new EnumSchema(values, message);
+	}
+
 	static optional<T>(schema: Schema<T>): OptionalSchema<T> {
 		return new OptionalSchema(schema);
 	}
 
 	static nullable<T>(schema: Schema<T>): NullableSchema<T> {
 		return new NullableSchema(schema);
-	}
-
-	static union<T extends [Schema, Schema, ...Schema[]]>(schemas: T, message?: string): UnionSchema<T> {
-		return new UnionSchema(schemas, message);
-	}
-
-	static enum<T extends [string, ...string[]]>(values: T, message?: string): EnumSchema<T[number]> {
-		return new EnumSchema(values, message);
-	}
-
-	static any(): AnySchema {
-		return new AnySchema();
 	}
 }
 

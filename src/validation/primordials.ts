@@ -188,7 +188,7 @@ export class BooleanSchema extends BaseSchema<boolean> {
 	}
 
 	override parse(data: unknown): boolean {
-		const str = String(data).toLowerCase();
+		const str = String(data);
 
 		if (str === "true" || str === "1" || str === "on") {
 			return true;
@@ -203,17 +203,10 @@ export class BooleanSchema extends BaseSchema<boolean> {
 	}
 }
 
-export class AnySchema extends BaseSchema<unknown> {
-	override parse(data: unknown): unknown {
-		return data;
-	}
-}
-
 export class FileSchema extends BaseSchema<File> {
 	private minSizeConstraint?: { value: number; message: string };
 	private maxSizeConstraint?: { value: number; message: string };
 	private allowedTypes?: { types: string[]; message: string };
-	private allowedExtensions?: { extensions: string[]; message: string };
 
 	constructor(private readonly message?: string) {
 		super();
@@ -252,6 +245,12 @@ export class FileSchema extends BaseSchema<File> {
 			throw this.createError([], this.allowedTypes.message, "invalid_type");
 		}
 
+		return data;
+	}
+}
+
+export class AnySchema extends BaseSchema<unknown> {
+	override parse(data: unknown): unknown {
 		return data;
 	}
 }
