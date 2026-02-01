@@ -6,7 +6,17 @@ export class ObjectSchema<T extends Record<string, Schema>>
 		super();
 	}
 
-	override parse(data: unknown): { [K in keyof T]: T[K] extends Schema<infer U> ? U : never } {
+	override parse(data: unknown): { [K in keyof T]: InferSchemaType<T[K]> } {
+		// Tenter de parser JSON si les données sont une chaîne
+		if (typeof data === "string") {
+			try {
+				data = JSON.parse(data);
+			} catch {
+				const errorMsg = this.message ?? `Expected object, got invalid JSON string`;
+				throw this.createError([], errorMsg, "invalid_json");
+			}
+		}
+
 		if (typeof data !== "object" || data === null || Array.isArray(data)) {
 			const errorMsg = this.message ?? `Expected object, got ${typeof data}`;
 			throw this.createError([], errorMsg, "invalid_type");
@@ -35,9 +45,7 @@ export class ObjectSchema<T extends Record<string, Schema>>
 			throw new ValidationError(errors);
 		}
 
-		return result as {
-			[K in keyof T]: T[K] extends Schema<infer U> ? U : never;
-		};
+		return result as { [K in keyof T]: InferSchemaType<T[K]> };
 	}
 }
 
@@ -67,6 +75,16 @@ export class ArraySchema<T> extends BaseSchema<T[]> {
 	}
 
 	override parse(data: unknown): T[] {
+		// Tenter de parser JSON si les données sont une chaîne
+		if (typeof data === "string") {
+			try {
+				data = JSON.parse(data);
+			} catch {
+				const errorMsg = this.message ?? `Expected array, got invalid JSON string`;
+				throw this.createError([], errorMsg, "invalid_json");
+			}
+		}
+
 		if (!Array.isArray(data)) {
 			const errorMsg = this.message ?? `Expected array, got ${typeof data}`;
 			throw this.createError([], errorMsg, "invalid_type");
