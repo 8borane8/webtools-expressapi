@@ -1,5 +1,6 @@
 import { type DataDefault, HttpRequest } from "../http/request.ts";
 import type { RequestListener } from "../routing/listener.ts";
+import { type CorsRules, mergeCorsRules, useCors } from "../routing/cors.ts";
 import { StringHelper } from "../helpers/string.ts";
 import { HttpResponse } from "../http/response.ts";
 import { HttpMethods } from "../http/methods.ts";
@@ -7,6 +8,14 @@ import type { Route } from "../routing/route.ts";
 import { Router } from "../routing/router.ts";
 
 export class HttpServer<TData = DataDefault> extends Router<TData> {
+	protected override corsRules: CorsRules = {
+		allowOrigin: "*",
+		allowMethods: "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+		allowHeaders: "*",
+		maxAge: "86400",
+		allowCredentials: false,
+	};
+
 	private notFoundHandler: RequestListener = (_req, res) =>
 		res.status(404).json({
 			success: false,
@@ -50,15 +59,19 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 
 		const res = new HttpResponse();
 
-		const globalMiddlewareResponse = await this.executeMiddlewares(this.middlewares, req, res);
-		if (globalMiddlewareResponse) return globalMiddlewareResponse;
-
 		if (request.method === "OPTIONS") {
-			return res.status(200).send(null);
+			const resource = this.findPreflightResource(request, normalizedPathname);
+			await useCors(req, res, mergeCorsRules(this.corsRules, resource?.cors) as Required<CorsRules>);
+			return res.status(204).send(null);
 		}
 
 		const route = this.findMatchingRoute(method, normalizedPathname);
 		if (!route) return await this.handleNotFound(req, res);
+
+		await useCors(req, res, mergeCorsRules(this.corsRules, route.cors) as Required<CorsRules>);
+
+		const globalMiddlewareResponse = await this.executeMiddlewares(this.middlewares, req, res);
+		if (globalMiddlewareResponse) return globalMiddlewareResponse;
 
 		const routeParams = this.extractRouteParams(normalizedPathname, route.url);
 		Object.assign(req.params, routeParams);
@@ -160,6 +173,25 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 			const regex = new RegExp(`^${pattern}$`);
 			return regex.test(pathname);
 		}) || null;
+	}
+
+	private findPreflightResource(request: Request, pathname: string): Route<TData> | null {
+		const acrm = request.headers.get("access-control-request-method")?.trim().toUpperCase() ?? "";
+		if (acrm && this.routes.has(acrm as HttpMethods)) {
+			const match = this.findMatchingRoute(acrm as HttpMethods, pathname);
+			if (match) return match;
+		}
+
+		return this.findAnyRouteForPath(pathname);
+	}
+
+	private findAnyRouteForPath(pathname: string): Route<TData> | null {
+		for (const m of Object.values(HttpMethods)) {
+			const r = this.findMatchingRoute(m, pathname);
+			if (r) return r;
+		}
+
+		return null;
 	}
 
 	private async executeMiddlewares(

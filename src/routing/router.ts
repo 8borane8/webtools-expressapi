@@ -1,4 +1,5 @@
 import type { ResolvedSchemas, Route, Schemas } from "./route.ts";
+import { type CorsRules, mergeCorsRules } from "./cors.ts";
 import type { DataDefault } from "../http/request.ts";
 import type { RequestListener } from "./listener.ts";
 import { StringHelper } from "../helpers/string.ts";
@@ -7,6 +8,8 @@ import { HttpMethods } from "../http/methods.ts";
 export class Router<TData = DataDefault> {
 	protected readonly routes: Map<HttpMethods, Route<TData>[]> = new Map();
 	protected readonly middlewares: RequestListener<TData>[] = [];
+
+	protected corsRules: CorsRules = {};
 
 	constructor(protected readonly prefix: string = "/") {
 		for (const method of Object.values(HttpMethods)) {
@@ -108,6 +111,11 @@ export class Router<TData = DataDefault> {
 		return this;
 	}
 
+	public cors(rules: CorsRules): this {
+		this.corsRules = mergeCorsRules(this.corsRules, rules);
+		return this;
+	}
+
 	public use(router: Router): this;
 	public use(prefix: string, router: Router): this;
 	public use(middleware: RequestListener<TData>): this;
@@ -137,6 +145,7 @@ export class Router<TData = DataDefault> {
 					...route,
 					url: StringHelper.normalizePath(prefix, route.url),
 					middlewares: [...router.middlewares, ...route.middlewares],
+					cors: mergeCorsRules(this.corsRules, router.corsRules, route.cors),
 				});
 			}
 		}

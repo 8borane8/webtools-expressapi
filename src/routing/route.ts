@@ -2,6 +2,7 @@ import type { DataDefault, RouteTypesDefault } from "../http/request.ts";
 import type { HttpMethods } from "../http/methods.ts";
 import type { RequestListener } from "./listener.ts";
 import type { Schema } from "../validation/base.ts";
+import type { CorsRules } from "./cors.ts";
 
 export type Schemas = {
 	query?: Schema<unknown>;
@@ -21,4 +22,5 @@ export interface Route<TData = DataDefault, TSchemas extends Schemas = Schemas> 
 	middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[];
 	requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>;
 	schemas?: TSchemas;
+	cors?: CorsRules;
 }

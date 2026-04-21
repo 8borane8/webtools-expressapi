@@ -24,6 +24,7 @@
 - **Type Safety** - Full TypeScript support with type inference
 - **Built-in Validation** - Schema-based request validation
 - **Middleware Support** - Global and per-route middleware
+- **Built-in CORS** - Per-router rules, merged on mount, OPTIONS preflight
 - **Modular Routing** - Organize routes with nested routers
 - **Web Standards** - Built on native Deno Web APIs
 - **Zero Dependencies** - Lightweight and fast
@@ -59,6 +60,7 @@ server.listen(5050);
 - [Routing](#routing)
 - [Request & Response](#request--response)
 - [Middleware](#middleware)
+- [CORS](#cors)
 - [Schema Validation](#schema-validation)
 - [Advanced Usage](#advanced-usage)
 - [API Reference](#api-reference)
@@ -266,15 +268,8 @@ server.use((req, res) => {
 	console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
 });
 
-// CORS middleware
-server.use((req, res) => {
-	res.setHeader("Access-Control-Allow-Origin", "*");
-	res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-
-	if (req.method === "OPTIONS") {
-		return res.status(200).send(null);
-	}
-});
+// CORS is applied automatically by HttpServer (see [CORS](#cors)).
+// Add extra headers here only if you need something beyond the built-in behaviour.
 ```
 
 ### Route-Specific Middleware
@@ -325,6 +320,66 @@ const middleware2 = (req, res) => {
 const middleware3 = (req, res) => {
 	// This won't execute if middleware2 returns
 	console.log("Middleware 3");
+};
+```
+
+## 🌐 CORS
+
+`HttpServer` applies CORS headers on every matched route and on **OPTIONS** preflight responses. You normally do **not**
+need a manual CORS middleware unless you add non-standard headers.
+
+### Defaults
+
+`HttpServer` ships with permissive defaults on `corsRules` (wildcard origin, common methods,
+`Access-Control-Allow-Headers: *`, `Access-Control-Max-Age`, etc.). Override them with `cors()` on the server or on any
+`Router` you mount.
+
+### `router.cors(rules)`
+
+Call `cors(rules)` on a `Router` to attach **default CORS rules for that router**. When the router is mounted with
+`use(prefix, router)` or `use(router)`, each route gets a merged `cors` field:
+
+1. Parent router’s `corsRules`
+2. Mounted router’s `corsRules`
+3. The route’s own `cors` (if any)
+
+Later entries in that chain **override** earlier ones (same semantics as `Object.assign` inside `mergeCorsRules`).
+
+```ts
+import { HttpServer, Router } from "jsr:@webtools/expressapi";
+
+const api = new Router("/v1");
+api.cors({
+	allowOrigin: "https://app.example.com",
+	maxAge: "7200",
+});
+
+api.get("/health", (_req, res) => res.json({ ok: true }));
+
+const server = new HttpServer();
+server.cors({ allowOrigin: "*" }); // optional: tighten or relax server-wide defaults
+server.use(api);
+server.listen(5050);
+```
+
+### Preflight (`OPTIONS`)
+
+For `OPTIONS`, the server responds with **204** and CORS headers. To pick which route’s `cors` applies when the same
+path exists for several methods, the server reads **`Access-Control-Request-Method`**: it resolves the route for that
+HTTP method and path. If the header is missing or does not match a registered method, it falls back to the **first**
+route that matches the path (stable iteration over `GET`, `POST`, `PUT`, `PATCH`, `DELETE`).
+
+### Types (`CorsRules`, `CorsAllow`)
+
+Exported from the package (see `mod.ts`). `allowOrigin`, `allowMethods`, and `allowHeaders` may be a **string** or an
+**async function** `(req) => string | undefined` for dynamic values (e.g. reflect `Origin` when using credentials).
+
+```ts
+import type { CorsRules } from "jsr:@webtools/expressapi";
+
+const rules: CorsRules = {
+	allowOrigin: (req) => req.headers.get("origin") ?? undefined,
+	allowCredentials: true,
 };
 ```
 
@@ -644,7 +699,12 @@ class HttpServer<TData = DataDefault> extends Router<TData>
 - `use(middleware)` - Add global middleware
 - `use(prefix, router)` - Mount router with prefix (combines with router's own prefix)
 - `use(router)` - Mount router (uses router's own prefix)
+- `cors(rules)` - Set default `CorsRules` for this server (merged with each route’s rules when responding)
 - `notFound(handler)` - Custom 404 handler
+
+Built-in behaviour: **OPTIONS** preflight (204) and CORS headers on successful route handling use `mergeCorsRules` over
+the server’s `corsRules` and the matched route’s `cors`. Preflight route selection prefers
+**`Access-Control-Request-Method`**.
 
 ### Router
 
@@ -666,8 +726,10 @@ class Router<TData = DataDefault>
 - `use(middleware)` - Add global middleware
 - `use(prefix, router)` - Mount router with prefix (combines with router's own prefix)
 - `use(router)` - Mount router (uses router's own prefix)
+- `cors(rules)` - Default CORS for routes registered on this router; merged into each route when the router is
+  **mounted** on a parent (`use`), together with the parent’s `corsRules` and any per-route `cors` (later wins)
 
-Same methods as `HttpServer` but doesn't start a server. The prefix is automatically applied to all routes when the
+Same methods as `HttpServer` except `listen` and `notFound`. The prefix is automatically applied to all routes when the
 router is used directly or mounted.
 
 ### HttpRequest
@@ -699,6 +761,7 @@ class HttpResponse
 
 - `status(code: number): HttpResponse` - Set status code
 - `setHeader(name: string, value: string): HttpResponse` - Set header
+- `getHeader(name: string): string | null` - Read a previously set header
 - `type(type: string): HttpResponse` - Set content type
 - `size(size: number): HttpResponse` - Set content length
 - `json(body: unknown): Response` - Send JSON response

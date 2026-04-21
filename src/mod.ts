@@ -1,6 +1,7 @@
 export type { Schema, ValidationError, ValidationResult } from "./validation/base.ts";
 export { z } from "./validation/schema.ts";
 
+export type { CorsAllow, CorsRules } from "./routing/cors.ts";
 export type { RequestListener } from "./routing/listener.ts";
 export type { Route } from "./routing/route.ts";
 export { Router } from "./routing/router.ts";

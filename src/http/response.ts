@@ -14,6 +14,10 @@ export class HttpResponse {
 		return this;
 	}
 
+	public getHeader(name: string): string | null {
+		return this.headers.get(name) || null;
+	}
+
 	public type(type: string): HttpResponse {
 		this.setHeader("Content-Type", contentType(`.${type}`) || "application/octet-stream");
 		return this;
