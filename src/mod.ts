@@ -1,4 +1,4 @@
-export type { Schema, ValidationError, ValidationResult, InferSchemaType } from "./validation/base.ts";
+export type { InferSchemaType, Schema, ValidationError, ValidationResult } from "./validation/base.ts";
 export { z } from "./validation/schema.ts";
 
 export type { CorsAllow, CorsRules } from "./routing/cors.ts";
