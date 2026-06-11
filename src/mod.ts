@@ -2,7 +2,7 @@ export type { InferSchemaType, Schema, ValidationError, ValidationResult } from 
 export { z } from "./validation/schema.ts";
 
 export type { CorsAllow, CorsRules } from "./routing/cors.ts";
-export type { RequestListener } from "./routing/listener.ts";
+export type { ErrorListener, RequestListener } from "./routing/listener.ts";
 export type { Route } from "./routing/route.ts";
 export { Router } from "./routing/router.ts";
 
@@ -15,4 +15,4 @@ export { StringHelper } from "./helpers/string.ts";
 
 export { JsonToken } from "./utils/json-token.ts";
 
-export { HttpServer } from "./core/server.ts";
+export { HttpServer, type HttpServerOptions } from "./core/server.ts";

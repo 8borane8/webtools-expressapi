@@ -195,7 +195,7 @@ server.post("/data", (req, res) => {
 	console.log(req.query); // Query parameters
 	console.log(req.params); // Route parameters
 	console.log(req.cookies); // Parsed cookies
-	console.log(req.ip); // Client IP address
+	console.log(req.ip); // Client IP (remote address, or x-forwarded-for with trustProxy)
 	console.log(req.raw); // Original Request object
 
 	// Custom data context
@@ -220,8 +220,8 @@ res.status(200).send("Plain text");
 // Redirect
 res.redirect("/new-location", 301);
 
-// Send file
-res.sendFile("/path/to/file.pdf");
+// Send file (async, throws if the file does not exist)
+await res.sendFile("/path/to/file.pdf");
 
 // Custom headers
 res.setHeader("X-Custom-Header", "value")
@@ -622,6 +622,31 @@ server.use("/api", usersRouter);
 // Final routes: /api/users
 ```
 
+### Fetch Handler
+
+`server.fetch` exposes the server as a standard fetch handler: `(Request) => Promise<Response>`. Useful for passing
+custom options to `Deno.serve` (hostname, TLS, abort signal...) instead of using `listen()`:
+
+```ts
+const server = new HttpServer();
+server.get("/", (_req, res) => res.json({ ok: true }));
+
+Deno.serve({ port: 5050, hostname: "127.0.0.1" }, server.fetch);
+```
+
+It also enables fast, portless unit testing — no `listen()` required:
+
+```ts
+Deno.test("GET /users/:id", async () => {
+	const response = await server.fetch(new Request("http://localhost/users/42"));
+	const body = await response.json();
+	assertEquals(body.userId, "42");
+});
+```
+
+**Note:** the optional second argument (`Deno.ServeHandlerInfo`) carries the TCP remote address. When it is not provided
+(e.g. in tests), `req.ip` falls back to `x-forwarded-for` (if `trustProxy` is enabled) or `null`.
+
 ### Custom 404 Handler
 
 ```ts
@@ -662,18 +687,39 @@ server.listen(5050);
 
 ### Error Handling
 
+Any error thrown by a middleware, a route handler, or the validation layer is caught by the server and forwarded to the
+global error handler. By default, the server responds with a `500` JSON error. Use `onError()` to customize this
+behaviour:
+
 ```ts
-server.use((req, res) => {
-	try {
-		// Your code
-	} catch (error) {
-		return res.status(500).json({
-			error: "Internal Server Error",
-			message: error.message,
-		});
-	}
+server.onError((error, req, res) => {
+	console.error(`Error on ${req.method} ${req.url}:`, error);
+
+	return res.status(500).json({
+		success: false,
+		error: "Internal Server Error",
+		message: error instanceof Error ? error.message : String(error),
+	});
 });
 ```
+
+If the handler returns nothing, the default `500` JSON response is sent.
+
+### Client IP & Reverse Proxies
+
+By default, `req.ip` is the remote address of the TCP connection — it cannot be spoofed by request headers. If your
+server runs behind a trusted reverse proxy (nginx, Caddy, a load balancer...), enable `trustProxy` to resolve the client
+IP from the first entry of the `x-forwarded-for` header instead:
+
+```ts
+const server = new HttpServer({ trustProxy: true });
+
+server.get("/ip", (req, res) => {
+	return res.json({ ip: req.ip });
+});
+```
+
+Only enable `trustProxy` when a trusted proxy sets `x-forwarded-for`, otherwise clients can spoof their IP.
 
 ## 📚 API Reference
 
@@ -685,12 +731,16 @@ class HttpServer<TData = DataDefault> extends Router<TData>
 
 **Constructor:**
 
-- `new HttpServer()` - Create a server instance. Inherits from `Router` with default prefix "/". The server does not
-  start automatically - call `listen(port)` to start it.
+- `new HttpServer(options?: HttpServerOptions)` - Create a server instance. Inherits from `Router` with default prefix
+  "/". The server does not start automatically - call `listen(port)` to start it.
+  - `options.trustProxy` (default `false`) - When `true`, `req.ip` is resolved from the first entry of the
+    `x-forwarded-for` header. Only enable this behind a trusted reverse proxy.
 
 **Methods:**
 
 - `listen(port: number)` - Start the server and begin listening for requests on the specified port
+- `fetch(request: Request, info?): Promise<Response>` - Standard fetch handler; usable with a custom `Deno.serve` setup
+  or directly in tests
 - `get<TSchemas>(url, handler, middlewares?, schemas?)` - Register GET route
 - `post<TSchemas>(url, handler, middlewares?, schemas?)` - Register POST route
 - `put<TSchemas>(url, handler, middlewares?, schemas?)` - Register PUT route
@@ -701,6 +751,7 @@ class HttpServer<TData = DataDefault> extends Router<TData>
 - `use(router)` - Mount router (uses router's own prefix)
 - `cors(rules)` - Set default `CorsRules` for this server (merged with each route’s rules when responding)
 - `notFound(handler)` - Custom 404 handler
+- `onError(handler)` - Custom global error handler, called whenever a middleware, route handler, or validation throws
 
 Built-in behaviour: **OPTIONS** preflight (204) and CORS headers on successful route handling use `mergeCorsRules` over
 the server’s `corsRules` and the matched route’s `cors`. Preflight route selection prefers
@@ -746,8 +797,9 @@ class HttpRequest<TData, TRouteTypes>
 - `body: TRouteTypes["body"]` - Parsed request body
 - `query: TRouteTypes["query"]` - Query parameters
 - `params: TRouteTypes["params"]` - Route parameters
-- `cookies: Record<string, string>` - Parsed cookies
-- `ip: string | null` - Client IP address
+- `cookies: Record<string, string>` - Parsed cookies (values are URI-decoded)
+- `ip: string | null` - Client IP address (TCP remote address by default; first `x-forwarded-for` entry when
+  `trustProxy` is enabled)
 - `data: TData` - Custom data context
 - `raw: Request` - Original Request object
 
@@ -767,7 +819,8 @@ class HttpResponse
 - `json(body: unknown): Response` - Send JSON response
 - `send(body: BodyInit | null): Response` - Send response
 - `redirect(url: string, code?: number): Response` - Redirect
-- `sendFile(path: string): Response` - Send file
+- `sendFile(path: string): Promise<Response>` - Stream a file from disk. Throws if the path does not exist (handled by
+  the global error handler, see `onError`)
 
 ### Helpers
 

@@ -40,11 +40,11 @@ export class HttpResponse {
 		return this.setHeader("Location", url).status(code).send(null);
 	}
 
-	public sendFile(path: string): Response {
-		const file = Deno.openSync(path, { read: true });
-		const size = Deno.statSync(path).size;
-		const type = path.split(".").at(-1)!;
+	public async sendFile(path: string): Promise<Response> {
+		const file = await Deno.open(path, { read: true });
 
-		return this.type(type).size(size).send(file.readable);
+		const stat = await file.stat();
+		const type = path.split(".").at(-1)!;
+		return this.type(type).size(stat.size).send(file.readable);
 	}
 }

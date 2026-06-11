@@ -5,3 +5,9 @@ export type RequestListener<TData = DataDefault, TRouteTypes extends RouteTypes 
 	req: HttpRequest<TData, TRouteTypes>,
 	res: HttpResponse,
 ) => Response | void | Promise<Response | void>;
+
+export type ErrorListener<TData = DataDefault, TRouteTypes extends RouteTypes = RouteTypesDefault> = (
+	error: unknown,
+	req: HttpRequest<TData, TRouteTypes>,
+	res: HttpResponse,
+) => Response | void | Promise<Response | void>;

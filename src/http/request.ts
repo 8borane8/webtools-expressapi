@@ -33,7 +33,6 @@ export class HttpRequest<TData = DataDefault, TRouteTypes extends RouteTypes = R
 	public readonly params: ResolvedRouteTypes<TRouteTypes>["params"] = {};
 
 	public readonly cookies: Record<string, string> = {};
-	public readonly ip: string | null = null;
 
 	public data: TData = Object.create(null);
 
@@ -42,21 +41,25 @@ export class HttpRequest<TData = DataDefault, TRouteTypes extends RouteTypes = R
 		public readonly method: HttpMethods,
 		public readonly headers: Headers,
 		public body: ResolvedRouteTypes<TRouteTypes>["body"],
+		public readonly ip: string | null,
 		public readonly raw: Request,
 	) {
 		if (this.headers.has("cookie")) {
 			const cookie = this.headers.get("cookie")!;
-			cookie.split(";").forEach((cookie) => {
-				const parts = cookie.trim().split("=");
-				if (parts.length === 2) {
-					this.cookies[parts[0]] = parts[1];
-				}
-			});
-		}
+			for (const part of cookie.split(";")) {
+				const separatorIndex = part.indexOf("=");
+				if (separatorIndex === -1) continue;
 
-		if (this.headers.has("x-forwarded-for")) {
-			const xForwardedFor = this.headers.get("x-forwarded-for")!;
-			this.ip = xForwardedFor.split(",")[0].trim();
+				const name = part.slice(0, separatorIndex).trim();
+				if (!name) continue;
+
+				const value = part.slice(separatorIndex + 1).trim();
+				try {
+					this.cookies[name] = decodeURIComponent(value);
+				} catch {
+					this.cookies[name] = value;
+				}
+			}
 		}
 	}
 }

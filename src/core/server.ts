@@ -1,11 +1,15 @@
 import { type DataDefault, HttpRequest } from "../http/request.ts";
-import type { RequestListener } from "../routing/listener.ts";
+import type { ErrorListener, RequestListener } from "../routing/listener.ts";
 import { type CorsRules, mergeCorsRules, useCors } from "../routing/cors.ts";
 import { StringHelper } from "../helpers/string.ts";
 import { HttpResponse } from "../http/response.ts";
 import { HttpMethods } from "../http/methods.ts";
 import type { Route } from "../routing/route.ts";
 import { Router } from "../routing/router.ts";
+
+export type HttpServerOptions = {
+	trustProxy?: boolean;
+};
 
 export class HttpServer<TData = DataDefault> extends Router<TData> {
 	protected override corsRules: CorsRules = {
@@ -16,14 +20,29 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 		allowCredentials: false,
 	};
 
+	constructor(private readonly options: HttpServerOptions = {}) {
+		super();
+	}
+
 	private notFoundHandler: RequestListener = (_req, res) =>
 		res.status(404).json({
 			success: false,
 			error: "404 Not Found.",
 		});
 
+	private errorHandler: ErrorListener = (_error, _req, res) =>
+		res.status(500).json({
+			success: false,
+			error: "500 Internal Server Error.",
+		});
+
 	public notFound(handler: RequestListener): this {
 		this.notFoundHandler = handler;
+		return this;
+	}
+
+	public onError(handler: ErrorListener): this {
+		this.errorHandler = handler;
 		return this;
 	}
 
@@ -35,11 +54,22 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 		});
 	}
 
-	public listen(port: number): void {
-		Deno.serve({ port }, this.requestListener.bind(this));
+	private async handleError(error: unknown, req: HttpRequest, res: HttpResponse): Promise<Response> {
+		const response = await this.errorHandler(error, req, res);
+		return response || res.status(500).json({
+			success: false,
+			error: "500 Internal Server Error.",
+		});
 	}
 
-	private async requestListener(request: Request): Promise<Response> {
+	public listen(port: number): void {
+		Deno.serve({ port }, this.fetch);
+	}
+
+	public fetch = (request: Request, info?: Deno.ServeHandlerInfo<Deno.NetAddr>): Promise<Response> =>
+		this.requestListener(request, info);
+
+	private async requestListener(request: Request, info?: Deno.ServeHandlerInfo<Deno.NetAddr>): Promise<Response> {
 		const url = new URL(request.url);
 		const method = request.method as HttpMethods;
 		const body = method === HttpMethods.GET ? null : await this.parseRequestBody(request.clone());
@@ -51,6 +81,7 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 			method,
 			request.headers,
 			body,
+			this.resolveClientIp(request, info),
 			request,
 		);
 
@@ -59,6 +90,20 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 
 		const res = new HttpResponse();
 
+		try {
+			return await this.handleRequest(request, req, res, method, normalizedPathname);
+		} catch (error) {
+			return await this.handleError(error, req, res);
+		}
+	}
+
+	private async handleRequest(
+		request: Request,
+		req: HttpRequest,
+		res: HttpResponse,
+		method: HttpMethods,
+		normalizedPathname: string,
+	): Promise<Response> {
 		if (request.method === "OPTIONS") {
 			const resource = this.findPreflightResource(request, normalizedPathname);
 			await useCors(req, res, mergeCorsRules(this.corsRules, resource?.cors) as Required<CorsRules>);
@@ -144,6 +189,16 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 		}
 	}
 
+	private resolveClientIp(request: Request, info?: Deno.ServeHandlerInfo<Deno.NetAddr>): string | null {
+		if (this.options.trustProxy) {
+			const xForwardedFor = request.headers.get("x-forwarded-for");
+			const firstHop = xForwardedFor?.split(",")[0].trim();
+			if (firstHop) return firstHop;
+		}
+
+		return info?.remoteAddr.hostname || null;
+	}
+
 	private extractQueryParams(searchParams: URLSearchParams): Record<string, string> {
 		return Object.fromEntries(searchParams.entries());
 	}
@@ -157,7 +212,12 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 			const part = routeParts[i];
 			if (part.startsWith(":")) {
 				const paramName = part.slice(1);
-				params[paramName] = urlParts[i] || "";
+				const rawValue = urlParts[i] || "";
+				try {
+					params[paramName] = decodeURIComponent(rawValue);
+				} catch {
+					params[paramName] = rawValue;
+				}
 			}
 		}
 
