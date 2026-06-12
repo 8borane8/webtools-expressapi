@@ -30,11 +30,13 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 			error: "404 Not Found.",
 		});
 
-	private errorHandler: ErrorListener = (_error, _req, res) =>
-		res.status(500).json({
+	private errorHandler: ErrorListener = (error, _req, res) => {
+		console.error(error);
+		return res.status(500).json({
 			success: false,
 			error: "500 Internal Server Error.",
 		});
+	};
 
 	public notFound(handler: RequestListener): this {
 		this.notFoundHandler = handler;
