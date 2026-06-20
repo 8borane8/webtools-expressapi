@@ -6,15 +6,23 @@ import { StringHelper } from "../helpers/string.ts";
 import { HttpMethods } from "../http/methods.ts";
 
 export class Router<TData = DataDefault> {
-	public readonly routes: Map<HttpMethods, Route<TData>[]> = new Map();
-	public readonly middlewares: RequestListener<TData>[] = [];
+	protected readonly routes: Map<HttpMethods, Route<TData>[]> = new Map();
+	protected readonly middlewares: RequestListener<TData>[] = [];
 
 	protected corsRules: CorsRules = {};
 
 	constructor(protected readonly prefix: string = "/") {
+		this.clearRoutes();
+	}
+
+	public clearRoutes(): void {
 		for (const method of Object.values(HttpMethods)) {
 			this.routes.set(method, []);
 		}
+	}
+
+	public clearMiddlewares(): void {
+		this.middlewares.length = 0;
 	}
 
 	public addRoute<TSchemas extends Schemas>(route: Route<TData, TSchemas>): this {
