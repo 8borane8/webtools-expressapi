@@ -6,8 +6,8 @@ import { StringHelper } from "../helpers/string.ts";
 import { HttpMethods } from "../http/methods.ts";
 
 export class Router<TData = DataDefault> {
-	protected readonly routes: Map<HttpMethods, Route<TData>[]> = new Map();
-	protected readonly middlewares: RequestListener<TData>[] = [];
+	public readonly routes: Map<HttpMethods, Route<TData>[]> = new Map();
+	public readonly middlewares: RequestListener<TData>[] = [];
 
 	protected corsRules: CorsRules = {};
 
@@ -22,9 +22,7 @@ export class Router<TData = DataDefault> {
 
 		const prefixedUrl = StringHelper.normalizePath(this.prefix, route.url);
 		if (routes.some((r) => r.url === prefixedUrl)) {
-			throw new Error(
-				`The route '${prefixedUrl}' is already registered for the '${route.method}' method.`,
-			);
+			throw new Error(`The route '${prefixedUrl}' is already registered for the '${route.method}' method.`);
 		}
 
 		routes.push({ ...route, url: prefixedUrl } as Route<TData>);
