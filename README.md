@@ -50,7 +50,7 @@ export type AppRouter = typeof server;
 server.listen(5050);
 ```
 
-Then, from anywhere — including a separate package:
+Then, from anywhere, including a separate package:
 
 ```ts
 import type { AppRouter } from "./server.ts";
@@ -137,7 +137,7 @@ When a schema is provided it replaces the default type for that part of the requ
 
 ### Responses can be a union
 
-A handler may return several different shapes. The client receives their union, and you narrow it however you like — the
+A handler may return several different shapes. The client receives their union, and you narrow it however you like. The
 framework imposes no `success` convention:
 
 ```ts
@@ -190,7 +190,7 @@ Query strings are parsed automatically. Without a schema, every value is `string
 })
 ```
 
-With a schema, values are validated and typed — see [Schema Validation](#schema-validation).
+With a schema, values are validated and typed. See [Schema Validation](#schema-validation).
 
 ### Modular Routers
 
@@ -223,8 +223,7 @@ const server = new HttpServer().use("/api", usersRouter); // final route: /api/u
 ```
 
 Mounting is checked at compile time against what the sub-router declared with `new Router<TData>()`. Middlewares the
-child registers with its own `.use()` do **not** become requirements on the parent — they travel with the mounted
-routes:
+child registers with its own `.use()` do **not** become requirements on the parent. They travel with the mounted routes:
 
 ```ts
 // ❌ Parent is missing `user`.
@@ -308,16 +307,16 @@ res.setHeader("X-Custom", "value").json({}); // set headers
 ```
 
 `res.json()` is what carries the response type. It returns a `TypedResponse<T>`, a real `Response` with a phantom type
-recording the body shape — this is what the client reads. `res.send()` and `res.redirect()` return a plain `Response`,
-so they contribute no type information.
+recording the body shape. This is what the client reads. `res.send()` and `res.redirect()` return a plain `Response`, so
+they contribute no type information.
 
 ## 🔌 Middleware
 
 A middleware is a listener that may fill `req.data` and may short-circuit the chain by returning a response. What makes
 it typed is its contract: `Middleware<TAdds, TNeeds>`.
 
-- `TAdds` — what it puts into `req.data`, made available to everything registered afterwards.
-- `TNeeds` — what it requires an earlier middleware to have put there.
+- `TAdds`: what it puts into `req.data`, made available to everything registered afterwards.
+- `TNeeds`: what it requires an earlier middleware to have put there.
 
 ```ts
 import { HttpServer, type Middleware } from "jsr:@webtools/expressapi";
@@ -367,7 +366,7 @@ new HttpServer().use(requireAdmin);
 ### Scope: global vs per-route
 
 > [!WARNING]
-> `use()` registers a middleware for the **whole router**. At runtime it runs for every route of that router — including
+> `use()` registers a middleware for the **whole router**. At runtime it runs for every route of that router, including
 > routes registered _before_ the `use()` call, and routes coming from mounted sub-routers. Only the **types** follow
 > registration order.
 
@@ -380,12 +379,12 @@ const server = new HttpServer()
 	.use(auth);
 ```
 
-To keep a route public, do not use a global middleware — pass it per route instead.
+To keep a route public, do not use a global middleware. Pass it per route instead.
 
 ### The `middleware()` helper
 
 Annotating a named constant is the usual way. Use the `middleware()` helper when you need an **inline** middleware,
-where there is no constant to annotate — `TAdds` cannot be inferred from the function body:
+where there is no constant to annotate. `TAdds` cannot be inferred from the function body:
 
 ```ts
 import { middleware } from "jsr:@webtools/expressapi";
@@ -422,7 +421,7 @@ Order is enforced inside the array too:
 ```
 
 Use a **global** middleware when many routes share the same context, and a **per-route** array when only some routes
-need it — both are fully typed.
+need it. Both are fully typed.
 
 ### Execution Order
 
@@ -438,7 +437,7 @@ Returning a response from any step stops the chain. Returning nothing continues.
 ## 🌐 Typed Client
 
 `HttpClient` is typed by the server's type. It has no runtime dependency on the server, so `import type` is enough and
-the server module is never evaluated — nothing starts, no port opens.
+the server module is never evaluated. Nothing starts, no port opens.
 
 ```ts
 // server.ts
@@ -452,7 +451,7 @@ export type AppRouter = typeof server;
 ```
 
 ```ts
-// client.ts — could be another package entirely
+// client.ts (could be another package entirely)
 import type { AppRouter } from "./server.ts";
 import { HttpClient, HttpClientError } from "jsr:@webtools/expressapi";
 
@@ -553,7 +552,7 @@ or unknown, it falls back to the first route matching the path, iterating `GET`,
 ### Dynamic values
 
 `allowOrigin`, `allowMethods` and `allowHeaders` accept a string or a function `(req) => string | undefined`, possibly
-async — useful to reflect the `Origin` header when using credentials. When the resolved origin is not `*`, a
+async, useful to reflect the `Origin` header when using credentials. When the resolved origin is not `*`, a
 `Vary: Origin` header is added automatically.
 
 ```ts
@@ -728,7 +727,7 @@ Only enable it when a trusted proxy sets the header, otherwise clients can spoof
 
 ### Dynamic Route Registration
 
-`addRoute()` registers a route from a plain object, with the same typing as `get` / `post` / … — schemas, middleware
+`addRoute()` registers a route from a plain object, with the same typing as `get` / `post` / …: schemas, middleware
 chain, params inference and the response shape all feed into `HttpClient`:
 
 ```ts
@@ -749,7 +748,7 @@ const server = new HttpServer()
 ```
 
 Registering the same method and URL twice throws. If the object is built dynamically (`url: string` rather than a
-literal), the client loses the precise URL union — prefer string literals when you care about typing.
+literal), the client loses the precise URL union. Prefer string literals when you care about typing.
 
 ## 📚 API Reference
 
@@ -761,15 +760,15 @@ class HttpServer extends Router
 
 **Constructor**
 
-- `new HttpServer(options?: HttpServerOptions)` — the server does not start automatically.
-  - `options.trustProxy` (default `false`) — resolve `req.ip` from `x-forwarded-for`. Only behind a trusted proxy.
+- `new HttpServer(options?: HttpServerOptions)`: the server does not start automatically.
+  - `options.trustProxy` (default `false`): resolve `req.ip` from `x-forwarded-for`. Only behind a trusted proxy.
 
-**Methods** — everything from `Router`, plus:
+**Methods**: everything from `Router`, plus:
 
-- `listen(port: number): void` — start serving
-- `fetch(request: Request, info?): Promise<Response>` — standard fetch handler
-- `notFound(handler: RequestListener): this` — custom 404
-- `onError(handler: ErrorListener): this` — custom global error handler
+- `listen(port: number): void`: start serving
+- `fetch(request: Request, info?): Promise<Response>`: standard fetch handler
+- `notFound(handler: RequestListener): this`: custom 404
+- `onError(handler: ErrorListener): this`: custom global error handler
 
 ### Router
 
@@ -781,17 +780,17 @@ class Router<TData = Record<never, never>>
 
 **Constructor**
 
-- `new Router<TData>(prefix?: string)` — prefix defaults to `"/"`
+- `new Router<TData>(prefix?: string)`: prefix defaults to `"/"`
 
 **Methods**
 
-- `get(url, handler, middlewares?, schemas?)` — and `post`, `put`, `patch`, `delete`. Returns the router type widened
+- `get(url, handler, middlewares?, schemas?)`: and `post`, `put`, `patch`, `delete`. Returns the router type widened
   with the new route.
-- `use(middleware)` — add a global middleware, widening `req.data` for what follows
-- `use(prefix, router)` — mount a router under a prefix, combining with the router's own prefix
-- `use(router)` — mount a router using its own prefix
-- `cors(rules: CorsRules): this` — default CORS rules for this router
-- `addRoute(route): this` — same inference as `get` / `post` / …, from a route object
+- `use(middleware)`: add a global middleware, widening `req.data` for what follows
+- `use(prefix, router)`: mount a router under a prefix, combining with the router's own prefix
+- `use(router)`: mount a router using its own prefix
+- `cors(rules: CorsRules): this`: default CORS rules for this router
+- `addRoute(route): this`: same inference as `get` / `post` / …, from a route object
 
 ### HttpRequest
 
@@ -819,10 +818,10 @@ class HttpRequest<TCtx extends RequestContext = DefaultContext>
 - `getHeader(name: string): string | null`
 - `type(type: string): HttpResponse`
 - `size(size: number): HttpResponse`
-- `json<T>(body: T): TypedResponse<T>` — carries the response type used by the client
+- `json<T>(body: T): TypedResponse<T>`: carries the response type used by the client
 - `send(body: BodyInit | null): Response`
-- `redirect(url: string, code?: number): Response` — defaults to 307
-- `sendFile(path: string): Promise<Response>` — throws if the path does not exist
+- `redirect(url: string, code?: number): Response`: defaults to 307
+- `sendFile(path: string): Promise<Response>`: throws if the path does not exist
 
 ### HttpClient
 
@@ -835,16 +834,16 @@ class HttpClient<TRoutes>
 **Constructor**
 
 - `new HttpClient<TRoutes>(options: HttpClientOptions)`
-  - `baseUrl: string` — trailing slashes trimmed
-  - `headers?: Record<string, string>` — sent on every request
-  - `fetch?: typeof fetch` — alternative implementation
+  - `baseUrl: string`: trailing slashes trimmed
+  - `headers?: Record<string, string>`: sent on every request
+  - `fetch?: typeof fetch`: alternative implementation
 
 **Methods**
 
-- `get(url, input?)` — and `post`, `put`, `patch`, `delete`. `input` accepts `params`, `query`, `body` and `headers`,
+- `get(url, input?)`: and `post`, `put`, `patch`, `delete`. `input` accepts `params`, `query`, `body` and `headers`,
   each required only when the route needs it. Resolves to the union of the handler's response shapes.
 
-**HttpClientError** — thrown on any non-2xx response, with `status: number`, `body: unknown` and `url: string`.
+**HttpClientError**: thrown on any non-2xx response, with `status: number`, `body: unknown` and `url: string`.
 
 ### Middleware
 
