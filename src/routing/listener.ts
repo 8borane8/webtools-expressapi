@@ -1,13 +1,17 @@
-import type { DataDefault, HttpRequest, RouteTypes, RouteTypesDefault } from "../http/request.ts";
+import type { DefaultContext, RequestContext } from "../http/context.ts";
+import type { HttpRequest } from "../http/request.ts";
 import type { HttpResponse } from "../http/response.ts";
 
-export type RequestListener<TData = DataDefault, TRouteTypes extends RouteTypes = RouteTypesDefault> = (
-	req: HttpRequest<TData, TRouteTypes>,
+export type RequestListener<TCtx extends RequestContext = DefaultContext> = (
+	req: HttpRequest<TCtx>,
 	res: HttpResponse,
 ) => Response | void | Promise<Response | void>;
 
-export type ErrorListener<TData = DataDefault, TRouteTypes extends RouteTypes = RouteTypesDefault> = (
+export type ErrorListener<TCtx extends RequestContext = DefaultContext> = (
 	error: unknown,
-	req: HttpRequest<TData, TRouteTypes>,
+	req: HttpRequest<TCtx>,
 	res: HttpResponse,
 ) => Response | void | Promise<Response | void>;
+
+// deno-lint-ignore no-explicit-any
+export type AnyListener = RequestListener<any>;

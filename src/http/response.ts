@@ -1,5 +1,9 @@
 import { contentType } from "@std/media-types";
 
+declare const bodyType: unique symbol;
+
+export type TypedResponse<T = unknown> = Response & { readonly [bodyType]?: T };
+
 export class HttpResponse {
 	private readonly headers: Map<string, string> = new Map();
 	private code: number = 200;
@@ -32,8 +36,8 @@ export class HttpResponse {
 		return new Response(body, { status: this.code, headers: this.headers });
 	}
 
-	public json(body: unknown): Response {
-		return this.type("json").send(JSON.stringify(body));
+	public json<T>(body: T): TypedResponse<T> {
+		return this.type("json").send(JSON.stringify(body)) as TypedResponse<T>;
 	}
 
 	public redirect(url: string, code: number = 307): Response {

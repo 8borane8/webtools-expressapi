@@ -61,6 +61,11 @@ export class StringSchema extends BaseSchema<string> {
 	}
 
 	override parse(data: unknown): string {
+		if (data === undefined || data === null) {
+			const errorMsg = this.message ?? `Expected string, got ${String(data)}`;
+			throw this.createError([], errorMsg, "invalid_type");
+		}
+
 		const str = String(data);
 
 		if (this.minLength && str.length < this.minLength.value) {
@@ -151,6 +156,11 @@ export class NumberSchema extends BaseSchema<number> {
 	}
 
 	override parse(data: unknown): number {
+		if (data === undefined || data === null || data === "") {
+			const errorMsg = this.message ?? `Expected number, got ${data === "" ? "empty string" : String(data)}`;
+			throw this.createError([], errorMsg, "invalid_type");
+		}
+
 		const num = Number(data);
 
 		if (isNaN(num)) {

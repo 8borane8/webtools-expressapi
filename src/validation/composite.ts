@@ -1,13 +1,17 @@
 import { BaseSchema, type InferSchemaType, type Schema, ValidationError } from "./base.ts";
 
-export class ObjectSchema<T extends Record<string, Schema>>
-	extends BaseSchema<{ [K in keyof T]: InferSchemaType<T[K]> }> {
+type OptionalKeys<T> = { [K in keyof T]: undefined extends InferSchemaType<T[K]> ? K : never }[keyof T];
+
+export type InferShape<T extends Record<string, Schema>> =
+	& { [K in Exclude<keyof T, OptionalKeys<T>>]: InferSchemaType<T[K]> }
+	& { [K in OptionalKeys<T>]?: InferSchemaType<T[K]> };
+
+export class ObjectSchema<T extends Record<string, Schema>> extends BaseSchema<InferShape<T>> {
 	constructor(private readonly shape: T, private readonly message?: string) {
 		super();
 	}
 
-	override parse(data: unknown): { [K in keyof T]: InferSchemaType<T[K]> } {
-		// Tenter de parser JSON si les données sont une chaîne
+	override parse(data: unknown): InferShape<T> {
 		if (typeof data === "string") {
 			try {
 				data = JSON.parse(data);
@@ -27,7 +31,8 @@ export class ObjectSchema<T extends Record<string, Schema>>
 
 		for (const [key, schema] of Object.entries(this.shape)) {
 			try {
-				result[key] = schema.parse((data as Record<string, unknown>)[key]);
+				const parsed = schema.parse((data as Record<string, unknown>)[key]);
+				if (parsed !== undefined) result[key] = parsed;
 			} catch (error) {
 				if (error instanceof ValidationError) {
 					errors.push(...error.issues.map((issue) => ({
@@ -45,7 +50,7 @@ export class ObjectSchema<T extends Record<string, Schema>>
 			throw new ValidationError(errors);
 		}
 
-		return result as { [K in keyof T]: InferSchemaType<T[K]> };
+		return result as InferShape<T>;
 	}
 }
 
@@ -75,7 +80,6 @@ export class ArraySchema<T> extends BaseSchema<T[]> {
 	}
 
 	override parse(data: unknown): T[] {
-		// Tenter de parser JSON si les données sont une chaîne
 		if (typeof data === "string") {
 			try {
 				data = JSON.parse(data);

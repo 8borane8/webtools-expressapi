@@ -1,19 +1,7 @@
-export type ValidationResult<T> = {
-	success: true;
-	data: T;
-} | {
-	success: false;
-	error: ValidationError;
-};
+export type ValidationResult<T> = { success: true; data: T } | { success: false; error: ValidationError };
 
 export class ValidationError extends Error {
-	constructor(
-		public readonly issues: Array<{
-			path: (string | number)[];
-			message: string;
-			code: string;
-		}>,
-	) {
+	constructor(public readonly issues: Array<{ path: (string | number)[]; message: string; code: string }>) {
 		super(issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join(", "));
 		this.name = "ValidationError";
 	}

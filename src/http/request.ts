@@ -1,46 +1,19 @@
+import type { DefaultContext, RequestContext } from "./context.ts";
 import type { HttpMethods } from "./methods.ts";
 
-// deno-lint-ignore no-explicit-any
-export type DataDefault = any;
-
-export type RouteTypes = {
-	// deno-lint-ignore no-explicit-any
-	query?: Record<string, any>;
-	// deno-lint-ignore no-explicit-any
-	params?: Record<string, any>;
-	// deno-lint-ignore no-explicit-any
-	body?: any;
-};
-
-export type RouteTypesDefault = {
-	query: Record<string, string | undefined>;
-	params: Record<string, string | undefined>;
-	// deno-lint-ignore no-explicit-any
-	body: any;
-};
-
-type ResolvedRouteTypes<TRouteTypes extends RouteTypes> = {
-	query: TRouteTypes["query"] extends undefined ? RouteTypesDefault["query"]
-		: TRouteTypes["query"];
-	params: TRouteTypes["params"] extends undefined ? RouteTypesDefault["params"]
-		: TRouteTypes["params"];
-	body: TRouteTypes["body"] extends undefined ? RouteTypesDefault["body"]
-		: TRouteTypes["body"];
-};
-
-export class HttpRequest<TData = DataDefault, TRouteTypes extends RouteTypes = RouteTypesDefault> {
-	public readonly query: ResolvedRouteTypes<TRouteTypes>["query"] = {};
-	public readonly params: ResolvedRouteTypes<TRouteTypes>["params"] = {};
+export class HttpRequest<TCtx extends RequestContext = DefaultContext> {
+	public readonly query: TCtx["query"] = {} as TCtx["query"];
+	public readonly params: TCtx["params"] = {} as TCtx["params"];
 
 	public readonly cookies: Record<string, string> = {};
 
-	public data: TData = Object.create(null);
+	public data: TCtx["data"] = Object.create(null);
 
 	constructor(
 		public readonly url: string,
 		public readonly method: HttpMethods,
 		public readonly headers: Headers,
-		public body: ResolvedRouteTypes<TRouteTypes>["body"],
+		public body: TCtx["body"],
 		public readonly ip: string | null,
 		public readonly raw: Request,
 	) {

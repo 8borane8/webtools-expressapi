@@ -1,31 +1,55 @@
-import type { ResolvedSchemas, Route, Schemas } from "./route.ts";
+import type { ChainAdds, Middleware, ValidateChain } from "./middleware.ts";
 import { type CorsRules, mergeCorsRules } from "./cors.ts";
-import type { DataDefault } from "../http/request.ts";
-import type { RequestListener } from "./listener.ts";
 import { StringHelper } from "../helpers/string.ts";
+import type { Schemas } from "../http/context.ts";
+import type { AnyListener } from "./listener.ts";
 import { HttpMethods } from "../http/methods.ts";
+import { dataMarker } from "./registry.ts";
+import type { Route } from "./route.ts";
+import type {
+	BodyOf,
+	DataMarker,
+	InferData,
+	InferRoutes,
+	ListenerReturn,
+	PrefixRoutes,
+	RouteEntry,
+	RouteMarker,
+	TypedListener,
+} from "./registry.ts";
 
-export class Router<TData = DataDefault> {
-	protected readonly routes: Map<HttpMethods, Route<TData>[]> = new Map();
-	protected readonly middlewares: RequestListener<TData>[] = [];
+type RouteArgs<
+	TData,
+	TUrl extends string,
+	TSchemas extends Schemas,
+	TReturn,
+	TMws extends readonly unknown[] = readonly [],
+> = [
+	url: TUrl,
+	requestListener: TypedListener<TData & ChainAdds<TMws>, TSchemas, TUrl, TReturn>,
+	middlewares?: ValidateChain<TData, TMws>,
+	schemas?: TSchemas,
+];
+
+type Registered<TSelf, TMethod extends HttpMethods, TUrl extends string, TSchemas extends Schemas, TReturn> =
+	& TSelf
+	& RouteMarker<RouteEntry<TMethod, TUrl, TSchemas, BodyOf<TReturn>>>;
+
+export class Router<TData = Record<never, never>> {
+	declare readonly [dataMarker]: TData;
+
+	protected readonly routes: Map<HttpMethods, Route[]> = new Map();
+	protected readonly middlewares: AnyListener[] = [];
 
 	protected corsRules: CorsRules = {};
 
 	constructor(protected readonly prefix: string = "/") {
-		this.clearRoutes();
-	}
-
-	public clearRoutes(): void {
 		for (const method of Object.values(HttpMethods)) {
 			this.routes.set(method, []);
 		}
 	}
 
-	public clearMiddlewares(): void {
-		this.middlewares.length = 0;
-	}
-
-	public addRoute<TSchemas extends Schemas>(route: Route<TData, TSchemas>): this {
+	public addRoute(route: Route): this {
 		const routes = this.routes.get(route.method)!;
 
 		const prefixedUrl = StringHelper.normalizePath(this.prefix, route.url);
@@ -33,85 +57,72 @@ export class Router<TData = DataDefault> {
 			throw new Error(`The route '${prefixedUrl}' is already registered for the '${route.method}' method.`);
 		}
 
-		routes.push({ ...route, url: prefixedUrl } as Route<TData>);
+		routes.push({ ...route, url: prefixedUrl });
 		return this;
 	}
 
-	public get<TSchemas extends Schemas>(
-		url: string,
-		requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>,
-		middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[] = [],
-		schemas?: TSchemas,
-	): this {
-		this.addRoute({
-			url,
-			method: HttpMethods.GET,
-			middlewares,
-			requestListener,
-			schemas,
-		});
-		return this;
+	public get<
+		TUrl extends string,
+		TSchemas extends Schemas,
+		TReturn extends ListenerReturn,
+		TMws extends readonly unknown[] = readonly [],
+	>(
+		...args: RouteArgs<InferData<this>, TUrl, TSchemas, TReturn, TMws>
+	): Registered<this, "GET", TUrl, TSchemas, TReturn> {
+		return this.register(HttpMethods.GET, args);
 	}
 
-	public post<TSchemas extends Schemas>(
-		url: string,
-		requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>,
-		middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[] = [],
-		schemas?: TSchemas,
-	): this {
-		this.addRoute({
-			url,
-			method: HttpMethods.POST,
-			middlewares,
-			requestListener,
-			schemas,
-		});
-		return this;
+	public post<
+		TUrl extends string,
+		TSchemas extends Schemas,
+		TReturn extends ListenerReturn,
+		TMws extends readonly unknown[] = readonly [],
+	>(
+		...args: RouteArgs<InferData<this>, TUrl, TSchemas, TReturn, TMws>
+	): Registered<this, "POST", TUrl, TSchemas, TReturn> {
+		return this.register(HttpMethods.POST, args);
 	}
 
-	public put<TSchemas extends Schemas>(
-		url: string,
-		requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>,
-		middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[] = [],
-		schemas?: TSchemas,
-	): this {
-		this.addRoute({
-			url,
-			method: HttpMethods.PUT,
-			middlewares,
-			requestListener,
-			schemas,
-		});
-		return this;
+	public put<
+		TUrl extends string,
+		TSchemas extends Schemas,
+		TReturn extends ListenerReturn,
+		TMws extends readonly unknown[] = readonly [],
+	>(
+		...args: RouteArgs<InferData<this>, TUrl, TSchemas, TReturn, TMws>
+	): Registered<this, "PUT", TUrl, TSchemas, TReturn> {
+		return this.register(HttpMethods.PUT, args);
 	}
 
-	public patch<TSchemas extends Schemas>(
-		url: string,
-		requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>,
-		middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[] = [],
-		schemas?: TSchemas,
-	): this {
-		this.addRoute({
-			url,
-			method: HttpMethods.PATCH,
-			middlewares,
-			requestListener,
-			schemas,
-		});
-		return this;
+	public patch<
+		TUrl extends string,
+		TSchemas extends Schemas,
+		TReturn extends ListenerReturn,
+		TMws extends readonly unknown[] = readonly [],
+	>(
+		...args: RouteArgs<InferData<this>, TUrl, TSchemas, TReturn, TMws>
+	): Registered<this, "PATCH", TUrl, TSchemas, TReturn> {
+		return this.register(HttpMethods.PATCH, args);
 	}
 
-	public delete<TSchemas extends Schemas>(
-		url: string,
-		requestListener: RequestListener<TData, ResolvedSchemas<TSchemas>>,
-		middlewares: RequestListener<TData, ResolvedSchemas<TSchemas>>[] = [],
-		schemas?: TSchemas,
-	): this {
+	public delete<
+		TUrl extends string,
+		TSchemas extends Schemas,
+		TReturn extends ListenerReturn,
+		TMws extends readonly unknown[] = readonly [],
+	>(
+		...args: RouteArgs<InferData<this>, TUrl, TSchemas, TReturn, TMws>
+	): Registered<this, "DELETE", TUrl, TSchemas, TReturn> {
+		return this.register(HttpMethods.DELETE, args);
+	}
+
+	// deno-lint-ignore no-explicit-any
+	private register(method: HttpMethods, [url, requestListener, middlewares = [], schemas]: any): any {
 		this.addRoute({
 			url,
-			method: HttpMethods.DELETE,
-			middlewares,
-			requestListener,
+			method,
+			middlewares: middlewares as AnyListener[],
+			requestListener: requestListener as AnyListener,
 			schemas,
 		});
 		return this;
@@ -122,15 +133,19 @@ export class Router<TData = DataDefault> {
 		return this;
 	}
 
-	public use(router: Router): this;
-	public use(prefix: string, router: Router): this;
-	public use(middleware: RequestListener<TData>): this;
-	public use(mpr: RequestListener<TData> | string | Router, router?: Router): this {
-		if (typeof mpr === "function") {
-			this.middlewares.push(mpr);
-			return this;
-		}
+	public use<TPrefix extends string, TRouter extends Router>(
+		prefix: TPrefix,
+		router: MountableRouter<this, TRouter>,
+	): this & RouteMarker<PrefixRoutes<InferRoutes<TRouter>, TPrefix>>;
 
+	public use<TRouter extends Router>(
+		router: MountableRouter<this, TRouter>,
+	): this & RouteMarker<PrefixRoutes<InferRoutes<TRouter>, "/">>;
+
+	public use<TAdds, TNeeds>(
+		middleware: ApplicableMiddleware<this, TAdds, TNeeds>,
+	): this & DataMarker<TAdds>;
+	public use(mpr: AnyListener | string | Router, router?: Router): this {
 		if (typeof mpr === "string" && router) {
 			this.mountRouter(router, mpr);
 			return this;
@@ -141,10 +156,15 @@ export class Router<TData = DataDefault> {
 			return this;
 		}
 
+		if (typeof mpr === "function") {
+			this.middlewares.push(mpr);
+			return this;
+		}
+
 		return this;
 	}
 
-	private mountRouter(router: Router<TData>, prefix = "/"): void {
+	private mountRouter(router: Router, prefix = "/"): void {
 		for (const routes of router.routes.values()) {
 			for (const route of routes) {
 				this.addRoute({
@@ -157,3 +177,9 @@ export class Router<TData = DataDefault> {
 		}
 	}
 }
+
+type MountableRouter<TParent, TRouter> = InferData<TParent> extends InferData<TRouter> ? TRouter
+	: "This router expects context data the parent does not provide. Register the middleware that supplies it before use().";
+
+type ApplicableMiddleware<TParent, TAdds, TNeeds> = InferData<TParent> extends TNeeds ? Middleware<TAdds, TNeeds>
+	: "This middleware depends on context data that is missing. Register the middleware that provides it first.";

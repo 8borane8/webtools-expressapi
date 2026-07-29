@@ -1,8 +1,8 @@
-import { type DataDefault, HttpRequest } from "../http/request.ts";
 import type { ErrorListener, RequestListener } from "../routing/listener.ts";
 import { type CorsRules, mergeCorsRules, useCors } from "../routing/cors.ts";
 import { StringHelper } from "../helpers/string.ts";
 import { HttpResponse } from "../http/response.ts";
+import { HttpRequest } from "../http/request.ts";
 import { HttpMethods } from "../http/methods.ts";
 import type { Route } from "../routing/route.ts";
 import { Router } from "../routing/router.ts";
@@ -11,7 +11,7 @@ export type HttpServerOptions = {
 	trustProxy?: boolean;
 };
 
-export class HttpServer<TData = DataDefault> extends Router<TData> {
+export class HttpServer extends Router {
 	protected override corsRules: CorsRules = {
 		allowOrigin: "*",
 		allowMethods: "GET, POST, PUT, PATCH, DELETE, OPTIONS",
@@ -24,19 +24,8 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 		super();
 	}
 
-	private notFoundHandler: RequestListener = (_req, res) =>
-		res.status(404).json({
-			success: false,
-			error: "404 Not Found.",
-		});
-
-	private errorHandler: ErrorListener = (error, _req, res) => {
-		console.error(error);
-		return res.status(500).json({
-			success: false,
-			error: "500 Internal Server Error.",
-		});
-	};
+	private notFoundHandler?: RequestListener;
+	private errorHandler?: ErrorListener;
 
 	public notFound(handler: RequestListener): this {
 		this.notFoundHandler = handler;
@@ -49,16 +38,14 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 	}
 
 	private async handleNotFound(req: HttpRequest, res: HttpResponse): Promise<Response> {
-		const response = await this.notFoundHandler(req, res);
-		return response || res.status(404).json({
+		return (await this.notFoundHandler?.(req, res)) || res.status(404).json({
 			success: false,
 			error: "404 Not Found.",
 		});
 	}
 
 	private async handleError(error: unknown, req: HttpRequest, res: HttpResponse): Promise<Response> {
-		const response = await this.errorHandler(error, req, res);
-		return response || res.status(500).json({
+		return (await this.errorHandler?.(error, req, res)) || res.status(500).json({
 			success: false,
 			error: "500 Internal Server Error.",
 		});
@@ -87,8 +74,7 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 			request,
 		);
 
-		const queryParams = this.extractQueryParams(url.searchParams);
-		Object.assign(req.query, queryParams);
+		Object.assign(req.query, Object.fromEntries(url.searchParams.entries()));
 
 		const res = new HttpResponse();
 
@@ -117,54 +103,41 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 
 		await useCors(req, res, mergeCorsRules(this.corsRules, route.cors) as Required<CorsRules>);
 
+		Object.assign(req.params, this.extractRouteParams(normalizedPathname, route.url));
+
+		const invalid = this.validate(route, req, res);
+		if (invalid) return invalid;
+
 		const globalMiddlewareResponse = await this.executeMiddlewares(this.middlewares, req, res);
 		if (globalMiddlewareResponse) return globalMiddlewareResponse;
-
-		const routeParams = this.extractRouteParams(normalizedPathname, route.url);
-		Object.assign(req.params, routeParams);
-
-		if (route.schemas) {
-			if (route.schemas.query) {
-				const queryResult = route.schemas.query.safeParse(req.query);
-				if (!queryResult.success) {
-					return res.status(400).json({
-						success: false,
-						error: "400 Bad Request.",
-						details: queryResult.error.issues,
-					});
-				}
-				Object.assign(req.query, queryResult.data);
-			}
-
-			if (route.schemas.params) {
-				const paramsResult = route.schemas.params.safeParse(req.params);
-				if (!paramsResult.success) {
-					return res.status(400).json({
-						success: false,
-						error: "400 Bad Request.",
-						details: paramsResult.error.issues,
-					});
-				}
-				Object.assign(req.params, paramsResult.data);
-			}
-
-			if (route.schemas.body) {
-				const bodyResult = route.schemas.body.safeParse(req.body);
-				if (!bodyResult.success) {
-					return res.status(400).json({
-						success: false,
-						error: "400 Bad Request.",
-						details: bodyResult.error.issues,
-					});
-				}
-				req.body = bodyResult.data;
-			}
-		}
 
 		const routeMiddlewareResponse = await this.executeMiddlewares(route.middlewares, req, res);
 		if (routeMiddlewareResponse) return routeMiddlewareResponse;
 
 		return await route.requestListener(req, res) || await this.handleNotFound(req, res);
+	}
+
+	private validate(route: Route, req: HttpRequest, res: HttpResponse): Response | null {
+		if (!route.schemas) return null;
+
+		for (const part of ["query", "params", "body"] as const) {
+			const schema = route.schemas[part];
+			if (!schema) continue;
+
+			const result = schema.safeParse(req[part]);
+			if (!result.success) {
+				return res.status(400).json({
+					success: false,
+					error: "400 Bad Request.",
+					details: result.error.issues,
+				});
+			}
+
+			if (part === "body") req.body = result.data;
+			else Object.assign(req[part], result.data as object);
+		}
+
+		return null;
 	}
 
 	private async parseRequestBody(request: Request): Promise<unknown> {
@@ -201,10 +174,6 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 		return info?.remoteAddr.hostname || null;
 	}
 
-	private extractQueryParams(searchParams: URLSearchParams): Record<string, string> {
-		return Object.fromEntries(searchParams.entries());
-	}
-
 	private extractRouteParams(url: string, routeUrl: string): Record<string, string> {
 		const urlParts = url.slice(1).split("/");
 		const routeParts = routeUrl.slice(1).split("/");
@@ -226,7 +195,7 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 		return params;
 	}
 
-	private findMatchingRoute(method: HttpMethods, pathname: string): Route<TData> | null {
+	private findMatchingRoute(method: HttpMethods, pathname: string): Route | null {
 		const routes = this.routes.get(method);
 		if (!routes) return null;
 
@@ -237,7 +206,7 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 		}) || null;
 	}
 
-	private findPreflightResource(request: Request, pathname: string): Route<TData> | null {
+	private findPreflightResource(request: Request, pathname: string): Route | null {
 		const acrm = request.headers.get("access-control-request-method")?.trim().toUpperCase() ?? "";
 		if (acrm && this.routes.has(acrm as HttpMethods)) {
 			const match = this.findMatchingRoute(acrm as HttpMethods, pathname);
@@ -247,7 +216,7 @@ export class HttpServer<TData = DataDefault> extends Router<TData> {
 		return this.findAnyRouteForPath(pathname);
 	}
 
-	private findAnyRouteForPath(pathname: string): Route<TData> | null {
+	private findAnyRouteForPath(pathname: string): Route | null {
 		for (const m of Object.values(HttpMethods)) {
 			const r = this.findMatchingRoute(m, pathname);
 			if (r) return r;

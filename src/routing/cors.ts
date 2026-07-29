@@ -22,11 +22,7 @@ async function resolveAllow(allow: CorsAllow | undefined, req: HttpRequest): Pro
 	return typeof allow === "function" ? await allow(req) : allow;
 }
 
-export async function useCors(
-	req: HttpRequest,
-	res: HttpResponse,
-	rules: Required<CorsRules>,
-): Promise<void> {
+export async function useCors(req: HttpRequest, res: HttpResponse, rules: Required<CorsRules>): Promise<void> {
 	const allowOrigin = await resolveAllow(rules.allowOrigin, req);
 	if (allowOrigin) {
 		res.setHeader("Access-Control-Allow-Origin", allowOrigin);

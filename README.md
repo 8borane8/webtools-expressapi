@@ -2,7 +2,7 @@
 
 <p align="center">
     <em>
-        A minimal, fast, and type-safe web framework for building APIs with Deno.
+        A minimal, fast, and end-to-end type-safe web framework for building APIs with Deno.
     </em>
 </p>
 
@@ -21,13 +21,14 @@
 ## ✨ Features
 
 - **Minimal API** - Intuitive Express.js-inspired syntax
-- **Type Safety** - Full TypeScript support with type inference
-- **Built-in Validation** - Schema-based request validation
-- **Middleware Support** - Global and per-route middleware
+- **End-to-end type safety** - Export your server type, get a fully typed client. No code generation, no contract file
+- **Inferred route params** - `req.params.id` is typed from the URL string, without writing a schema
+- **Typed middleware context** - Each middleware declares what it adds to `req.data`, and the compiler enforces ordering
+- **Built-in validation** - Schema-based request validation that narrows `req.body`, `req.query` and `req.params`
 - **Built-in CORS** - Per-router rules, merged on mount, OPTIONS preflight
-- **Modular Routing** - Organize routes with nested routers
-- **Web Standards** - Built on native Deno Web APIs
-- **Zero Dependencies** - Lightweight and fast
+- **Modular routing** - Organize routes with nested routers
+- **Web standards** - Built on native Deno Web APIs
+- **Zero runtime cost for types** - All inference is erased at compile time
 
 ## 📦 Installation
 
@@ -40,339 +41,517 @@ deno add jsr:@webtools/expressapi
 ```ts
 import { HttpServer } from "jsr:@webtools/expressapi";
 
-const server = new HttpServer();
+export const server = new HttpServer()
+	.get("/", (_req, res) => res.json({ message: "Hello, World!" }))
+	.get("/users/:id", (req, res) => res.json({ id: req.params.id }));
 
-server.get("/", (req, res) => {
-	return res.json({ message: "Hello, World!" });
-});
-
-server.post("/users", (req, res) => {
-	const user = req.body;
-	return res.status(201).json({ created: true, user });
-});
+export type AppRouter = typeof server;
 
 server.listen(5050);
 ```
 
+Then, from anywhere — including a separate package:
+
+```ts
+import type { AppRouter } from "./server.ts";
+import { HttpClient } from "jsr:@webtools/expressapi";
+
+const client = new HttpClient<AppRouter>({ baseUrl: "http://localhost:5050" });
+
+const user = await client.get("/users/:id", { params: { id: "42" } });
+//    ^ { id: string }
+```
+
+> [!IMPORTANT]
+> Routes must be registered by **chaining**. Each call returns a router type enriched with the new route, so a discarded
+> return value is a lost route. See [Chaining is required](#chaining-is-required).
+
 ## 📖 Table of Contents
 
-- [Getting Started](#getting-started)
+- [Type Safety](#type-safety)
 - [Routing](#routing)
 - [Request & Response](#request--response)
 - [Middleware](#middleware)
+- [Typed Client](#typed-client)
 - [CORS](#cors)
 - [Schema Validation](#schema-validation)
 - [Advanced Usage](#advanced-usage)
 - [API Reference](#api-reference)
 - [Examples](#examples)
 
-## 🎯 Getting Started
+## 🔒 Type Safety
 
-### Creating a Server
+Types flow from your route definitions to your client without any generation step. Four things are inferred.
+
+### Chaining is required
+
+The type information lives in the **type of the router**, accumulated one route at a time. Every route method returns
+`this` widened with the route it just registered, so you must keep the returned value:
 
 ```ts
-import { HttpServer } from "jsr:@webtools/expressapi";
+// ✅ Types accumulate
+const server = new HttpServer()
+	.get("/a", (_req, res) => res.json({ a: 1 }))
+	.get("/b", (_req, res) => res.json({ b: 2 }));
 
-// Create server instance
+// ❌ Routes work at runtime, but the type of `server` knows nothing about them,
+//    so HttpClient<typeof server> sees no routes at all.
 const server = new HttpServer();
-
-// Start the server on port 5050
-server.listen(5050);
-console.log("Server running on http://localhost:5050");
+server.get("/a", (_req, res) => res.json({ a: 1 }));
 ```
 
-### Basic Route
+### Route params are inferred from the URL
+
+No schema needed. The parameter names are read from the path string:
 
 ```ts
-server.get("/hello", (req, res) => {
-	return res.json({ message: "Hello, World!" });
-});
+.get("/users/:userId/posts/:postId", (req, res) => {
+	req.params.userId; // string
+	req.params.postId; // string
+	// @ts-expect-error 'nope' is not in the URL
+	req.params.nope;
+	return res.json({ ok: true });
+})
 ```
+
+### Schemas narrow the request
+
+When a schema is provided it replaces the default type for that part of the request:
+
+```ts
+.post("/users", (req, res) => {
+	req.body.name; // string
+	req.body.age;  // number
+	return res.json({ id: "1" });
+}, [], {
+	body: z.object({ name: z.string(), age: z.number() }),
+})
+```
+
+| Request part | Without schema                        | With schema         |
+| ------------ | ------------------------------------- | ------------------- |
+| `params`     | inferred from the URL                 | the schema type     |
+| `query`      | `Record<string, string \| undefined>` | the schema type     |
+| `body`       | `unknown`                             | the schema type     |
+| `data`       | what the middlewares added            | (not schema-driven) |
+
+### Responses can be a union
+
+A handler may return several different shapes. The client receives their union, and you narrow it however you like — the
+framework imposes no `success` convention:
+
+```ts
+.get("/users/:id", (req, res) => {
+	const user = findUser(req.params.id);
+	if (!user) return res.json({ found: false as const });
+	return res.json({ found: true as const, name: user.name });
+})
+```
+
+```ts
+const result = await client.get("/users/:id", { params: { id: "42" } });
+//    ^ { found: false } | { found: true; name: string }
+
+if (result.found) console.log(result.name); // narrowed
+```
+
+Use `as const` on discriminants so they stay literal types instead of widening to `boolean` or `string`.
+
+A handler that returns nothing on some branch contributes nothing to the union: `void` is dropped.
+
+### Middleware context accumulates
+
+See [Middleware](#middleware). Each middleware declares what it adds to `req.data`, and what it requires from earlier
+middlewares. The compiler rejects a wrong order.
 
 ## 🛣️ Routing
 
 ### HTTP Methods
 
-ExpressAPI supports all standard HTTP methods:
+All five methods share the same signature: `(url, handler, middlewares?, schemas?)`.
 
 ```ts
-server.get("/users", (req, res) => {
-	return res.json({ users: [] });
-});
-
-server.post("/users", (req, res) => {
-	return res.status(201).json({ created: true });
-});
-
-server.put("/users/:id", (req, res) => {
-	return res.json({ updated: true, id: req.params.id });
-});
-
-server.patch("/users/:id", (req, res) => {
-	return res.json({ patched: true, id: req.params.id });
-});
-
-server.delete("/users/:id", (req, res) => {
-	return res.status(204).send(null);
-});
-```
-
-### Route Parameters
-
-Access dynamic route segments via `req.params`:
-
-```ts
-server.get("/users/:id", (req, res) => {
-	const userId = req.params.id;
-	return res.json({ userId });
-});
-
-server.get("/users/:userId/posts/:postId", (req, res) => {
-	return res.json({
-		userId: req.params.userId,
-		postId: req.params.postId,
-	});
-});
+const server = new HttpServer()
+	.get("/users", (_req, res) => res.json({ users: [] }))
+	.post("/users", (_req, res) => res.status(201).json({ created: true }))
+	.put("/users/:id", (req, res) => res.json({ updated: true, id: req.params.id }))
+	.patch("/users/:id", (req, res) => res.json({ patched: true, id: req.params.id }))
+	.delete("/users/:id", (_req, res) => res.status(204).send(null));
 ```
 
 ### Query Parameters
 
-Query strings are automatically parsed:
+Query strings are parsed automatically. Without a schema, every value is `string | undefined`:
 
 ```ts
-server.get("/search", (req, res) => {
-	const { q, page = "1", limit = "10" } = req.query;
-	return res.json({
-		query: q,
-		page: parseInt(page),
-		limit: parseInt(limit),
-	});
-});
+.get("/search", (req, res) => {
+	const page = req.query.page ?? "1";
+	return res.json({ query: req.query.q, page });
+})
 ```
+
+With a schema, values are validated and typed — see [Schema Validation](#schema-validation).
+
+### Modular Routers
+
+A `Router` groups routes and can be mounted on a server or another router. Its type parameter declares the `req.data`
+context it expects the parent to provide:
+
+```ts
+import { Router } from "jsr:@webtools/expressapi";
+
+type User = { id: string; name: string };
+
+export const usersRouter = new Router<{ user: User }>()
+	.get("/users", (_req, res) => res.json({ users: [] }))
+	.get("/users/:id", (req, res) => res.json({ id: req.params.id, by: req.data.user.id }));
+```
+
+Mount it with a prefix, or with the prefix the router was built with:
+
+```ts
+const server = new HttpServer()
+	.use(auth) // provides { user: User }
+	.use("/api", usersRouter); // routes become /api/users, /api/users/:id
+```
+
+Prefixes combine, and they combine at the type level too:
+
+```ts
+const usersRouter = new Router("/users").get("/", handler); // internal route: /users
+const server = new HttpServer().use("/api", usersRouter); // final route: /api/users
+```
+
+Mounting is checked at compile time. If the parent does not provide the context the sub-router declared, you get a
+readable error instead of a runtime crash:
+
+```ts
+// ❌ This router expects context data the parent does not provide.
+//    Register the middleware that supplies it before use().
+new HttpServer().use("/api", usersRouter);
+```
+
+The same rule applies to context a sub-router accumulated itself: a router that calls `.use(auth)` internally can only
+be mounted on a parent that also provides what `auth` adds. Declare the context with `Router<TData>` and let the parent
+supply it, as above.
 
 ### URL Normalization
 
-ExpressAPI automatically normalizes all route URLs and incoming request paths. This ensures consistent route matching
-regardless of how URLs are written.
-
-**Normalization rules:**
-
-- Multiple consecutive slashes are collapsed to a single slash
-- Trailing slashes are removed (except for the root path `/`)
-- Leading slashes are normalized
-
-**Examples:**
+Route URLs and incoming request paths are both normalized, so matching is consistent regardless of how paths are
+written. Consecutive slashes collapse to one, and trailing slashes are removed (except for the root `/`).
 
 ```ts
-// These route definitions are equivalent:
-server.get("/users", handler);
-server.get("/users/", handler); // Trailing slash removed
-server.get("//users", handler); // Multiple slashes normalized
+// Equivalent definitions
+.get("/users", handler)
+.get("/users/", handler)
+.get("//users", handler)
 
-// These requests all match the same route:
-// GET /users      → matches /users
-// GET /users/     → matches /users (trailing slash removed)
-// GET //users     → matches /users (multiple slashes normalized)
-// GET /users///   → matches /users (normalized)
+// All of these match /users
+// GET /users      GET /users/      GET //users      GET /users///
 ```
-
-**Note:** The root path `/` is preserved and not normalized. All other paths are normalized to remove trailing slashes
-and collapse multiple slashes.
 
 ## 📥 Request & Response
 
-### Request Object
-
-The `HttpRequest` object provides access to request data:
+### Request
 
 ```ts
-server.post("/data", (req, res) => {
-	// Request properties
-	console.log(req.url); // Pathname
-	console.log(req.method); // HTTP method
-	console.log(req.headers); // Headers object
-	console.log(req.body); // Parsed body
-	console.log(req.query); // Query parameters
-	console.log(req.params); // Route parameters
-	console.log(req.cookies); // Parsed cookies
-	console.log(req.ip); // Client IP (remote address, or x-forwarded-for with trustProxy)
-	console.log(req.raw); // Original Request object
-
-	// Custom data context
-	req.data = { userId: 123 };
-
-	return res.json({ success: true });
-});
+.post("/data", (req, res) => {
+	req.url;     // pathname
+	req.method;  // HTTP method
+	req.headers; // Headers
+	req.body;    // parsed body
+	req.query;   // query parameters
+	req.params;  // route parameters
+	req.cookies; // parsed cookies, URI-decoded
+	req.ip;      // client IP, or null
+	req.data;    // context filled by middlewares
+	req.raw;     // original Request
+	return res.json({ ok: true });
+})
 ```
 
-### Response Methods
+Fill `req.data` key by key rather than replacing it, otherwise you discard whatever earlier middlewares put there:
 
 ```ts
-// JSON response (default status 200)
-res.json({ message: "Success" });
-
-// Custom status code
-res.status(201).json({ created: true });
-
-// Text response
-res.status(200).send("Plain text");
-
-// Redirect
-res.redirect("/new-location", 301);
-
-// Send file (async, throws if the file does not exist)
-await res.sendFile("/path/to/file.pdf");
-
-// Custom headers
-res.setHeader("X-Custom-Header", "value")
-	.setHeader("X-Another", "value2")
-	.json({ data: "..." });
-
-// Set content type
-res.type("xml").send("<root></root>");
+req.data.user = user; // ✅
+req.data = { user }; // ❌ drops the keys added upstream
 ```
 
-### Request Body Parsing
+`query`, `params` and `cookies` are read-only and populated by the server; `data` and `body` are the two you write to.
 
-The body is automatically parsed based on `Content-Type`:
+### Body Parsing
+
+The body is parsed from `Content-Type`. `GET` requests are never given a body.
+
+| Content-Type                        | `req.body`                        |
+| ----------------------------------- | --------------------------------- |
+| `application/json`                  | parsed JSON                       |
+| `multipart/form-data`               | object of fields, files as `File` |
+| `application/x-www-form-urlencoded` | object of fields                  |
+| anything else                       | raw text                          |
+
+A malformed body yields `null` rather than throwing.
+
+### Response
 
 ```ts
-// JSON (application/json)
-server.post("/json", (req, res) => {
-	const { name, email } = req.body;
-	return res.json({ name, email });
-});
-
-// Form data (multipart/form-data)
-server.post("/upload", (req, res) => {
-	const formData = req.body; // Object with form fields
-	return res.json({ received: formData });
-});
-
-// URL encoded (application/x-www-form-urlencoded)
-server.post("/form", (req, res) => {
-	const data = req.body; // Parsed as object
-	return res.json({ data });
-});
+res.json({ message: "Success" }); // 200 JSON
+res.status(201).json({ created: true }); // custom status
+res.send("Plain text"); // raw body
+res.redirect("/new-location", 301); // redirect
+await res.sendFile("/path/to/file.pdf"); // stream a file
+res.type("xml").send("<root></root>"); // set content type
+res.setHeader("X-Custom", "value").json({}); // set headers
 ```
+
+`res.json()` is what carries the response type. It returns a `TypedResponse<T>`, a real `Response` with a phantom type
+recording the body shape — this is what the client reads. `res.send()` and `res.redirect()` return a plain `Response`,
+so they contribute no type information.
 
 ## 🔌 Middleware
 
-### Global Middleware
+A middleware is a listener that may fill `req.data` and may short-circuit the chain by returning a response. What makes
+it typed is its contract: `Middleware<TAdds, TNeeds>`.
 
-Global middleware runs before all routes:
+- `TAdds` — what it puts into `req.data`, made available to everything registered afterwards.
+- `TNeeds` — what it requires an earlier middleware to have put there.
 
 ```ts
-// Logging middleware
-server.use((req, res) => {
-	console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
-});
+import { HttpServer, type Middleware } from "jsr:@webtools/expressapi";
 
-// CORS is applied automatically by HttpServer (see [CORS](#cors)).
-// Add extra headers here only if you need something beyond the built-in behaviour.
+type User = { id: string; name: string; role: "admin" | "user" };
+
+const trace: Middleware<{ requestId: string }> = (req) => {
+	req.data.requestId = crypto.randomUUID();
+};
+
+const auth: Middleware<{ user: User }> = (req, res) => {
+	const token = req.headers.get("authorization");
+	if (!token) return res.status(401).json({ error: "Unauthorized" });
+	req.data.user = { id: "1", name: "Alice", role: "admin" };
+};
+
+// Requires `auth` to have run first.
+const requireAdmin: Middleware<{ admin: boolean }, { user: User }> = (req) => {
+	req.data.admin = req.data.user.role === "admin";
+};
+```
+
+Registering them accumulates the context:
+
+```ts
+const server = new HttpServer()
+	.use(trace)
+	.use(auth)
+	.use(requireAdmin)
+	.get("/me", (req, res) =>
+		res.json({
+			requestId: req.data.requestId, // string
+			name: req.data.user.name, // string
+			admin: req.data.admin, // boolean
+		}));
+```
+
+Order is enforced by the compiler. Registering `requireAdmin` without `auth` before it fails with the reason spelled out
+in the error:
+
+```ts
+// ❌ This middleware depends on context data that is missing.
+//    Register the middleware that provides it first.
+new HttpServer().use(requireAdmin);
+```
+
+### Scope: global vs per-route
+
+> [!WARNING]
+> `use()` registers a middleware for the **whole router**. At runtime it runs for every route of that router — including
+> routes registered _before_ the `use()` call, and routes coming from mounted sub-routers. Only the **types** follow
+> registration order.
+
+This trips people up on login endpoints. A route registered before `.use(auth)` does not see `req.data.user` in its
+handler, but `auth` still runs for it:
+
+```ts
+const server = new HttpServer()
+	.post("/login", (_req, res) => res.json({ token: "..." })) // still requires a token at runtime!
+	.use(auth);
+```
+
+To keep a route public, do not use a global middleware — pass it per route instead.
+
+### The `middleware()` helper
+
+Annotating a named constant is the usual way. Use the `middleware()` helper when you need an **inline** middleware,
+where there is no constant to annotate — `TAdds` cannot be inferred from the function body:
+
+```ts
+import { middleware } from "jsr:@webtools/expressapi";
+
+const server = new HttpServer()
+	.use(middleware<{ requestId: string }>((req) => {
+		req.data.requestId = crypto.randomUUID();
+	}))
+	.get("/", (req, res) => res.json({ id: req.data.requestId }));
 ```
 
 ### Route-Specific Middleware
 
-Apply middleware to specific routes:
+The third argument of a route method takes middlewares that run **only for that route**, after the global ones. This is
+how you protect some routes while leaving others public. Within the array, `TAdds` / `TNeeds` chain exactly like
+successive `.use()` calls, and the handler sees the accumulated context:
 
 ```ts
-const authenticate = (req, res) => {
-	const token = req.headers.get("authorization");
-	if (!token || !token.startsWith("Bearer ")) {
-		return res.status(401).json({ error: "Unauthorized" });
-	}
-	// Attach user data to request
-	req.data = { userId: 123 };
-};
-
-const requireAdmin = (req, res) => {
-	if (req.data?.role !== "admin") {
-		return res.status(403).json({ error: "Forbidden" });
-	}
-};
-
-server.get(
-	"/admin/users",
-	(req, res) => {
-		return res.json({ users: [] });
-	},
-	[authenticate, requireAdmin],
-);
+const server = new HttpServer()
+	.post("/login", (_req, res) => res.json({ token: "..." })) // public
+	.get("/profile", (req, res) => {
+		return res.json({ id: req.data.user.id, admin: req.data.admin });
+	}, [auth, requireAdmin]); // protected, fully typed
 ```
 
-### Middleware Chain
-
-Middleware executes in order. Return a response to stop the chain:
+Order is enforced inside the array too:
 
 ```ts
-const middleware1 = (req, res) => {
-	console.log("Middleware 1");
-	// Continue to next middleware
-};
+// ❌ This middleware depends on context data that is missing.
+.get("/admin", (_req, res) => res.json({ ok: true }), [requireAdmin])
 
-const middleware2 = (req, res) => {
-	console.log("Middleware 2");
-	// Stop chain by returning response
-	return res.status(403).json({ error: "Blocked" });
-};
-
-const middleware3 = (req, res) => {
-	// This won't execute if middleware2 returns
-	console.log("Middleware 3");
-};
+// ❌ Same error: requireAdmin runs before auth has provided `user`.
+.get("/admin", (_req, res) => res.json({ ok: true }), [requireAdmin, auth])
 ```
 
-## 🌐 CORS
+Use a **global** middleware when many routes share the same context, and a **per-route** array when only some routes
+need it — both are fully typed.
 
-`HttpServer` applies CORS headers on every matched route and on **OPTIONS** preflight responses. You normally do **not**
-need a manual CORS middleware unless you add non-standard headers.
+### Execution Order
+
+1. CORS headers
+2. Route params extraction
+3. Schema validation (`query`, `params`, `body`)
+4. Global middlewares, in registration order
+5. Route middlewares
+6. Route handler
+
+Returning a response from any step stops the chain. Returning nothing continues.
+
+## 🌐 Typed Client
+
+`HttpClient` is typed by the server's type. It has no runtime dependency on the server, so `import type` is enough and
+the server module is never evaluated — nothing starts, no port opens.
+
+```ts
+// server.ts
+export const server = new HttpServer()
+	.get("/users/:id", (req, res) => res.json({ id: req.params.id, name: "Alice" }))
+	.post("/users", (req, res) => res.json({ id: "1", name: req.body.name }), [], {
+		body: z.object({ name: z.string() }),
+	});
+
+export type AppRouter = typeof server;
+```
+
+```ts
+// client.ts — could be another package entirely
+import type { AppRouter } from "./server.ts";
+import { HttpClient, HttpClientError } from "jsr:@webtools/expressapi";
+
+const client = new HttpClient<AppRouter>({
+	baseUrl: "http://localhost:5050",
+	headers: { authorization: "Bearer token" },
+});
+
+const user = await client.get("/users/:id", { params: { id: "42" } });
+//    ^ { id: string; name: string }
+
+const created = await client.post("/users", { body: { name: "Charlie" } });
+//    ^ { id: string; name: string }
+```
+
+URLs, methods, params, query, body and response are all checked:
+
+```ts
+await client.get("/nope"); // ❌ unknown URL
+await client.post("/users/:id", { params: { id: "1" } }); // ❌ no POST on this URL
+await client.get("/users/:id"); // ❌ params are required
+await client.get("/users/:id", { params: { id: 1 } }); // ❌ id must be a string
+await client.post("/users", { body: { name: 42 } }); // ❌ name must be a string
+```
+
+The `input` argument is optional when the route requires neither params, nor query, nor body. `headers` may always be
+passed, and is merged over the client's own headers.
+
+### Errors
+
+Any response outside the 2xx range throws an `HttpClientError` carrying the parsed body:
+
+```ts
+try {
+	await client.get("/users/:id", { params: { id: "42" } });
+} catch (error) {
+	if (error instanceof HttpClientError) {
+		console.error(error.status); // 404
+		console.error(error.body); // parsed response body
+		console.error(error.url); // full requested URL
+	}
+}
+```
+
+Because non-2xx responses throw, the shapes your handler returns with an error status never reach the return type. If
+you want a failure shape to be part of the returned union, send it with a 2xx status.
+
+### Options
+
+```ts
+new HttpClient<AppRouter>({
+	baseUrl: "http://localhost:5050", // trailing slashes are trimmed
+	headers: { authorization: "Bearer token" }, // sent on every request
+	fetch: customFetch, // alternative fetch, useful in tests
+});
+```
+
+Empty responses (`204`) yield `null`. Non-JSON responses are returned as text rather than throwing.
+
+## 🌍 CORS
+
+`HttpServer` applies CORS headers on every matched route and on **OPTIONS** preflight responses. You do not need a
+manual CORS middleware unless you add non-standard headers.
 
 ### Defaults
 
-`HttpServer` ships with permissive defaults on `corsRules` (wildcard origin, common methods,
-`Access-Control-Allow-Headers: *`, `Access-Control-Max-Age`, etc.). Override them with `cors()` on the server or on any
-`Router` you mount.
+`HttpServer` ships with permissive defaults: wildcard origin, the five methods plus `OPTIONS`,
+`Access-Control-Allow-Headers: *`, a one-day `Access-Control-Max-Age`, and credentials disabled. Override them with
+`cors()` on the server or on any `Router` you mount.
 
 ### `router.cors(rules)`
 
-Call `cors(rules)` on a `Router` to attach **default CORS rules for that router**. When the router is mounted with
-`use(prefix, router)` or `use(router)`, each route gets a merged `cors` field:
+Rules attached to a router become the defaults for its routes. When the router is mounted, each route gets a merged
+`cors` field, later entries overriding earlier ones:
 
-1. Parent router’s `corsRules`
-2. Mounted router’s `corsRules`
-3. The route’s own `cors` (if any)
-
-Later entries in that chain **override** earlier ones (same semantics as `Object.assign` inside `mergeCorsRules`).
+1. Parent router's rules
+2. Mounted router's rules
+3. The route's own `cors`, if any
 
 ```ts
 import { HttpServer, Router } from "jsr:@webtools/expressapi";
 
-const api = new Router("/v1");
-api.cors({
-	allowOrigin: "https://app.example.com",
-	maxAge: "7200",
-});
+const api = new Router("/v1")
+	.cors({ allowOrigin: "https://app.example.com", maxAge: "7200" })
+	.get("/health", (_req, res) => res.json({ ok: true }));
 
-api.get("/health", (_req, res) => res.json({ ok: true }));
-
-const server = new HttpServer();
-server.cors({ allowOrigin: "*" }); // optional: tighten or relax server-wide defaults
-server.use(api);
-server.listen(5050);
+const server = new HttpServer()
+	.cors({ allowOrigin: "*" })
+	.use(api);
 ```
 
-### Preflight (`OPTIONS`)
+### Preflight
 
-For `OPTIONS`, the server responds with **204** and CORS headers. To pick which route’s `cors` applies when the same
-path exists for several methods, the server reads **`Access-Control-Request-Method`**: it resolves the route for that
-HTTP method and path. If the header is missing or does not match a registered method, it falls back to the **first**
-route that matches the path (stable iteration over `GET`, `POST`, `PUT`, `PATCH`, `DELETE`).
+For `OPTIONS`, the server responds **204** with CORS headers. To decide which route's rules apply when several methods
+share a path, it reads `Access-Control-Request-Method` and resolves the route for that method. If the header is missing
+or unknown, it falls back to the first route matching the path, iterating `GET`, `POST`, `PUT`, `PATCH`, `DELETE`.
 
-### Types (`CorsRules`, `CorsAllow`)
+### Dynamic values
 
-Exported from the package (see `mod.ts`). `allowOrigin`, `allowMethods`, and `allowHeaders` may be a **string** or an
-**async function** `(req) => string | undefined` for dynamic values (e.g. reflect `Origin` when using credentials).
+`allowOrigin`, `allowMethods` and `allowHeaders` accept a string or a function `(req) => string | undefined`, possibly
+async — useful to reflect the `Origin` header when using credentials. When the resolved origin is not `*`, a
+`Vary: Origin` header is added automatically.
 
 ```ts
 import type { CorsRules } from "jsr:@webtools/expressapi";
@@ -385,72 +564,51 @@ const rules: CorsRules = {
 
 ## ✅ Schema Validation
 
-ExpressAPI includes a powerful schema validation system for type-safe request validation.
-
-### Basic Validation
+Schemas validate at runtime **and** narrow the request type at compile time. They are passed as the fourth argument of a
+route method.
 
 ```ts
 import { z } from "jsr:@webtools/expressapi";
 
-server.post(
-	"/users",
-	(req, res) => {
-		// req.body is now typed and validated
-		const { name, email, age } = req.body;
-		return res.status(201).json({ user: { name, email, age } });
-	},
-	[],
-	{
-		body: z.object({
-			name: z.string().min(3).max(50),
-			email: z.string().email(),
-			age: z.optional(z.number().int().positive()),
-		}),
-	},
-);
+const server = new HttpServer()
+	.post(
+		"/users",
+		(req, res) => {
+			const { name, email, age } = req.body; // typed and validated
+			return res.status(201).json({ name, email, age });
+		},
+		[],
+		{
+			body: z.object({
+				name: z.string().min(3).max(50),
+				email: z.string().email(),
+				age: z.optional(z.number().int().positive()),
+			}),
+		},
+	);
 ```
 
-### Validating Query Parameters
+`query` and `params` work the same way. Validating `params` is only needed when you want more than `string`:
 
 ```ts
-server.get(
-	"/users",
-	(req, res) => {
-		// req.query is validated and typed
-		const { page, limit } = req.query;
-		return res.json({ page, limit });
-	},
-	[],
-	{
-		query: z.object({
-			page: z.optional(z.number().int().positive()),
-			limit: z.optional(z.number().int().positive().max(100)),
-		}),
-	},
-);
+.get("/users/:id", (req, res) => res.json({ id: req.params.id }), [], {
+	params: z.object({ id: z.string().uuid() }),
+})
 ```
 
-### Validating Route Parameters
+### Optional keys
+
+`z.optional()` marks a key optional in the inferred type as well, so an omitted key stays absent instead of becoming
+`undefined`:
 
 ```ts
-server.get(
-	"/users/:id",
-	(req, res) => {
-		// req.params.id is validated as UUID
-		return res.json({ userId: req.params.id });
-	},
-	[],
-	{
-		params: z.object({
-			id: z.string().uuid(),
-		}),
-	},
-);
+const schema = z.object({ q: z.string(), page: z.optional(z.string()) });
+// inferred as { q: string; page?: string }
 ```
 
-### Validation Error Response
+### Validation errors
 
-Invalid data automatically returns a 400 response:
+Invalid data returns a 400 before the handler runs:
 
 ```json
 {
@@ -466,373 +624,244 @@ Invalid data automatically returns a 400 response:
 }
 ```
 
-### Schema Types
-
-#### String Schemas
+### Available schemas
 
 ```ts
-z.string(); // Basic string
-z.string().min(3); // Minimum length
-z.string().max(100); // Maximum length
-z.string().length(10); // Exact length
-z.string().email(); // Email validation
-z.string().uuid(); // UUID validation
-z.string().url(); // URL validation
-z.string().regex(/^[A-Z]+$/); // Regex pattern
-z.string().startsWith("prefix"); // Must start with
-z.string().endsWith("suffix"); // Must end with
-```
+// Strings
+z.string();
+z.string().min(3).max(100).length(10);
+z.string().email().uuid().url();
+z.string().regex(/^[A-Z]+$/);
+z.string().startsWith("prefix").endsWith("suffix");
 
-#### Number Schemas
+// Numbers
+z.number();
+z.number().int().positive().negative();
+z.number().min(0).max(100);
 
-```ts
-z.number(); // Basic number
-z.number().int(); // Integer only
-z.number().positive(); // Must be positive
-z.number().negative(); // Must be negative
-z.number().min(0); // Minimum value
-z.number().max(100); // Maximum value
-```
+// Booleans and files
+z.boolean();
+z.file();
 
-#### Composite Schemas
-
-```ts
-// Objects
-z.object({
-	name: z.string(),
-	age: z.number(),
-	email: z.string().email(),
-});
-
-// Arrays
-z.array(z.string()); // Array of strings
-z.array(z.string()).min(1); // At least 1 item
-z.array(z.string()).max(10); // At most 10 items
-z.array(z.string()).length(5); // Exactly 5 items
-
-// Optional and nullable
-z.optional(z.string()); // string | undefined
+// Composites
+z.object({ name: z.string(), age: z.number() });
+z.array(z.string()).min(1).max(10).length(5);
+z.union([z.string(), z.number()]);
+z.enum(["red", "green", "blue"]);
+z.optional(z.string()); // string | undefined, key becomes optional
 z.nullable(z.string()); // string | null
-
-// Unions
-z.union([z.string(), z.number()]); // string | number
-
-// Enums
-z.enum(["red", "green", "blue"]); // "red" | "green" | "blue"
-
-// Any
-z.any(); // Any value
+z.any();
 ```
+
+Every builder takes an optional custom message as its last argument, for example `z.string("Name is required")`.
+
+Objects and arrays also accept a JSON **string**, which they parse before validating. This lets you validate structured
+data arriving through a query parameter or a form field.
 
 ## 🚀 Advanced Usage
 
-### Modular Routers
-
-Organize routes into separate modules:
-
-#### Option 1: Prefix in Constructor
-
-```ts
-// routes/users.ts
-import { Router, z } from "jsr:@webtools/expressapi";
-
-// Create router with prefix
-export const usersRouter = new Router("/api/users");
-
-usersRouter.get("/", (req, res) => {
-	return res.json({ users: [] });
-});
-
-usersRouter.post(
-	"/",
-	(req, res) => {
-		return res.status(201).json({ user: req.body });
-	},
-	[],
-	{
-		body: z.object({
-			name: z.string().min(3),
-			email: z.string().email(),
-		}),
-	},
-);
-
-usersRouter.get("/:id", (req, res) => {
-	return res.json({ userId: req.params.id });
-});
-```
-
-```ts
-// server.ts
-import { HttpServer } from "jsr:@webtools/expressapi";
-import { usersRouter } from "./routes/users.ts";
-
-const server = new HttpServer();
-
-// Mount router (prefix already applied)
-server.use(usersRouter);
-// Routes: /api/users, /api/users/:id
-
-server.listen(5050);
-```
-
-#### Option 2: Prefix on Mount
-
-```ts
-// routes/users.ts
-import { Router, z } from "jsr:@webtools/expressapi";
-
-export const usersRouter = new Router();
-
-usersRouter.get("/", (req, res) => {
-	return res.json({ users: [] });
-});
-
-usersRouter.get("/:id", (req, res) => {
-	return res.json({ userId: req.params.id });
-});
-```
-
-```ts
-// server.ts
-import { HttpServer } from "jsr:@webtools/expressapi";
-import { usersRouter } from "./routes/users.ts";
-
-const server = new HttpServer();
-
-// Mount router with prefix
-server.use("/api/users", usersRouter);
-// Routes: /api/users, /api/users/:id
-
-server.listen(5050);
-```
-
-#### Option 3: Combined Prefixes
-
-Prefixes can be combined when mounting:
-
-```ts
-// routes/users.ts
-const usersRouter = new Router("/users");
-usersRouter.get("/", handler);
-// Internal routes: /users
-
-// server.ts
-server.use("/api", usersRouter);
-// Final routes: /api/users
-```
-
 ### Fetch Handler
 
-`server.fetch` exposes the server as a standard fetch handler: `(Request) => Promise<Response>`. Useful for passing
-custom options to `Deno.serve` (hostname, TLS, abort signal...) instead of using `listen()`:
+`server.fetch` exposes the server as a standard fetch handler, `(Request, info?) => Promise<Response>`. Use it to pass
+custom options to `Deno.serve` instead of `listen()`:
 
 ```ts
-const server = new HttpServer();
-server.get("/", (_req, res) => res.json({ ok: true }));
-
 Deno.serve({ port: 5050, hostname: "127.0.0.1" }, server.fetch);
 ```
 
-It also enables fast, portless unit testing — no `listen()` required:
+It also makes tests fast and portless:
 
 ```ts
 Deno.test("GET /users/:id", async () => {
 	const response = await server.fetch(new Request("http://localhost/users/42"));
-	const body = await response.json();
-	assertEquals(body.userId, "42");
+	assertEquals((await response.json()).id, "42");
 });
 ```
 
-**Note:** the optional second argument (`Deno.ServeHandlerInfo`) carries the TCP remote address. When it is not provided
-(e.g. in tests), `req.ip` falls back to `x-forwarded-for` (if `trustProxy` is enabled) or `null`.
+The optional second argument carries the TCP remote address. When absent, as in tests, `req.ip` falls back to
+`x-forwarded-for` if `trustProxy` is enabled, otherwise `null`.
 
 ### Custom 404 Handler
 
 ```ts
-server.notFound((req, res) => {
-	return res.status(404).json({
+server.notFound((req, res) =>
+	res.status(404).json({
 		error: "Not Found",
 		path: req.url,
 		method: req.method,
-	});
-});
+	})
+);
 ```
 
-### Type-Safe Data Context
-
-Use generics for type-safe request data:
-
-```ts
-interface AppData {
-	userId: number;
-	role: string;
-}
-
-const server = new HttpServer<AppData>();
-
-server.use((req, res) => {
-	// Type-safe data assignment
-	req.data = { userId: 123, role: "admin" };
-});
-
-server.get("/profile", (req, res) => {
-	// req.data is typed as AppData
-	const { userId, role } = req.data;
-	return res.json({ userId, role });
-});
-
-server.listen(5050);
-```
+A handler that returns nothing falls back to the default 404 JSON response.
 
 ### Error Handling
 
-Any error thrown by a middleware, a route handler, or the validation layer is caught by the server and forwarded to the
-global error handler. By default, the server responds with a `500` JSON error. Use `onError()` to customize this
-behaviour:
+Any error thrown by a middleware, a handler, or the validation layer is caught and forwarded to the global error
+handler. By default the server replies with a 500 JSON error:
 
 ```ts
-server.onError((error, req, res) => {
-	console.error(`Error on ${req.method} ${req.url}:`, error);
-
-	return res.status(500).json({
+server.onError((error, req, res) =>
+	res.status(500).json({
 		success: false,
 		error: "Internal Server Error",
 		message: error instanceof Error ? error.message : String(error),
-	});
-});
+	})
+);
 ```
 
-If the handler returns nothing, the default `500` JSON response is sent.
+Returning nothing falls back to the default 500 response.
 
 ### Client IP & Reverse Proxies
 
-By default, `req.ip` is the remote address of the TCP connection — it cannot be spoofed by request headers. If your
-server runs behind a trusted reverse proxy (nginx, Caddy, a load balancer...), enable `trustProxy` to resolve the client
-IP from the first entry of the `x-forwarded-for` header instead:
+`req.ip` is the remote address of the TCP connection by default, which cannot be spoofed by headers. Behind a trusted
+reverse proxy, enable `trustProxy` to read the first entry of `x-forwarded-for` instead:
 
 ```ts
 const server = new HttpServer({ trustProxy: true });
+```
 
-server.get("/ip", (req, res) => {
-	return res.json({ ip: req.ip });
+Only enable it when a trusted proxy sets the header, otherwise clients can spoof their IP.
+
+### Dynamic Route Registration
+
+`addRoute()` registers a route from a plain object. Routes added this way do **not** appear in the router's type, so
+they are invisible to `HttpClient`:
+
+```ts
+import { type AnyListener, HttpMethods, type Route } from "jsr:@webtools/expressapi";
+
+const handler: AnyListener = (_req, res) => res.json({ dynamic: true });
+
+server.addRoute({
+	url: "/dynamic",
+	method: HttpMethods.GET,
+	middlewares: [],
+	requestListener: handler,
 });
 ```
 
-Only enable `trustProxy` when a trusted proxy sets `x-forwarded-for`, otherwise clients can spoof their IP.
+Registering the same method and URL twice throws.
 
 ## 📚 API Reference
 
 ### HttpServer
 
 ```ts
-class HttpServer<TData = DataDefault> extends Router<TData>
+class HttpServer extends Router
 ```
 
-**Constructor:**
+**Constructor**
 
-- `new HttpServer(options?: HttpServerOptions)` - Create a server instance. Inherits from `Router` with default prefix
-  "/". The server does not start automatically - call `listen(port)` to start it.
-  - `options.trustProxy` (default `false`) - When `true`, `req.ip` is resolved from the first entry of the
-    `x-forwarded-for` header. Only enable this behind a trusted reverse proxy.
+- `new HttpServer(options?: HttpServerOptions)` — the server does not start automatically.
+  - `options.trustProxy` (default `false`) — resolve `req.ip` from `x-forwarded-for`. Only behind a trusted proxy.
 
-**Methods:**
+**Methods** — everything from `Router`, plus:
 
-- `listen(port: number)` - Start the server and begin listening for requests on the specified port
-- `fetch(request: Request, info?): Promise<Response>` - Standard fetch handler; usable with a custom `Deno.serve` setup
-  or directly in tests
-- `get<TSchemas>(url, handler, middlewares?, schemas?)` - Register GET route
-- `post<TSchemas>(url, handler, middlewares?, schemas?)` - Register POST route
-- `put<TSchemas>(url, handler, middlewares?, schemas?)` - Register PUT route
-- `patch<TSchemas>(url, handler, middlewares?, schemas?)` - Register PATCH route
-- `delete<TSchemas>(url, handler, middlewares?, schemas?)` - Register DELETE route
-- `use(middleware)` - Add global middleware
-- `use(prefix, router)` - Mount router with prefix (combines with router's own prefix)
-- `use(router)` - Mount router (uses router's own prefix)
-- `cors(rules)` - Set default `CorsRules` for this server (merged with each route’s rules when responding)
-- `notFound(handler)` - Custom 404 handler
-- `onError(handler)` - Custom global error handler, called whenever a middleware, route handler, or validation throws
-
-Built-in behaviour: **OPTIONS** preflight (204) and CORS headers on successful route handling use `mergeCorsRules` over
-the server’s `corsRules` and the matched route’s `cors`. Preflight route selection prefers
-**`Access-Control-Request-Method`**.
+- `listen(port: number): void` — start serving
+- `fetch(request: Request, info?): Promise<Response>` — standard fetch handler
+- `notFound(handler: RequestListener): this` — custom 404
+- `onError(handler: ErrorListener): this` — custom global error handler
 
 ### Router
 
 ```ts
-class Router<TData = DataDefault>
+class Router<TData = Record<never, never>>
 ```
 
-**Constructor:**
+`TData` declares the `req.data` context this router expects its parent to provide.
 
-- `new Router(prefix?: string)` - Create a router with an optional prefix (default: "/")
+**Constructor**
 
-**Methods:**
+- `new Router<TData>(prefix?: string)` — prefix defaults to `"/"`
 
-- `get<TSchemas>(url, handler, middlewares?, schemas?)` - Register GET route
-- `post<TSchemas>(url, handler, middlewares?, schemas?)` - Register POST route
-- `put<TSchemas>(url, handler, middlewares?, schemas?)` - Register PUT route
-- `patch<TSchemas>(url, handler, middlewares?, schemas?)` - Register PATCH route
-- `delete<TSchemas>(url, handler, middlewares?, schemas?)` - Register DELETE route
-- `use(middleware)` - Add global middleware
-- `use(prefix, router)` - Mount router with prefix (combines with router's own prefix)
-- `use(router)` - Mount router (uses router's own prefix)
-- `cors(rules)` - Default CORS for routes registered on this router; merged into each route when the router is
-  **mounted** on a parent (`use`), together with the parent’s `corsRules` and any per-route `cors` (later wins)
+**Methods**
 
-Same methods as `HttpServer` except `listen` and `notFound`. The prefix is automatically applied to all routes when the
-router is used directly or mounted.
+- `get(url, handler, middlewares?, schemas?)` — and `post`, `put`, `patch`, `delete`. Returns the router type widened
+  with the new route.
+- `use(middleware)` — add a global middleware, widening `req.data` for what follows
+- `use(prefix, router)` — mount a router under a prefix, combining with the router's own prefix
+- `use(router)` — mount a router using its own prefix
+- `cors(rules: CorsRules): this` — default CORS rules for this router
+- `addRoute(route: Route): this` — dynamic registration, untyped
 
 ### HttpRequest
 
 ```ts
-class HttpRequest<TData, TRouteTypes>
+class HttpRequest<TCtx extends RequestContext = DefaultContext>
 ```
 
-**Properties:**
-
-- `url: string` - Request pathname
-- `method: HttpMethods` - HTTP method
-- `headers: Headers` - Request headers
-- `body: TRouteTypes["body"]` - Parsed request body
-- `query: TRouteTypes["query"]` - Query parameters
-- `params: TRouteTypes["params"]` - Route parameters
-- `cookies: Record<string, string>` - Parsed cookies (values are URI-decoded)
-- `ip: string | null` - Client IP address (TCP remote address by default; first `x-forwarded-for` entry when
-  `trustProxy` is enabled)
-- `data: TData` - Custom data context
-- `raw: Request` - Original Request object
+| Property  | Type                     | Notes                                                   |
+| --------- | ------------------------ | ------------------------------------------------------- |
+| `url`     | `string`                 | pathname, normalized                                    |
+| `method`  | `HttpMethods`            |                                                         |
+| `headers` | `Headers`                |                                                         |
+| `body`    | `TCtx["body"]`           | schema type, else `unknown`                             |
+| `query`   | `TCtx["query"]`          | schema type, else `Record<string, string \| undefined>` |
+| `params`  | `TCtx["params"]`         | schema type, else inferred from the URL                 |
+| `data`    | `TCtx["data"]`           | what the middlewares added                              |
+| `cookies` | `Record<string, string>` | URI-decoded                                             |
+| `ip`      | `string \| null`         | TCP address, or `x-forwarded-for` when `trustProxy`     |
+| `raw`     | `Request`                | original request                                        |
 
 ### HttpResponse
 
+- `status(code: number): HttpResponse`
+- `setHeader(name: string, value: string): HttpResponse`
+- `getHeader(name: string): string | null`
+- `type(type: string): HttpResponse`
+- `size(size: number): HttpResponse`
+- `json<T>(body: T): TypedResponse<T>` — carries the response type used by the client
+- `send(body: BodyInit | null): Response`
+- `redirect(url: string, code?: number): Response` — defaults to 307
+- `sendFile(path: string): Promise<Response>` — throws if the path does not exist
+
+### HttpClient
+
 ```ts
-class HttpResponse
+class HttpClient<TRoutes>
 ```
 
-**Methods:**
+`TRoutes` accepts a server or router type, typically `typeof server` imported with `import type`.
 
-- `status(code: number): HttpResponse` - Set status code
-- `setHeader(name: string, value: string): HttpResponse` - Set header
-- `getHeader(name: string): string | null` - Read a previously set header
-- `type(type: string): HttpResponse` - Set content type
-- `size(size: number): HttpResponse` - Set content length
-- `json(body: unknown): Response` - Send JSON response
-- `send(body: BodyInit | null): Response` - Send response
-- `redirect(url: string, code?: number): Response` - Redirect
-- `sendFile(path: string): Promise<Response>` - Stream a file from disk. Throws if the path does not exist (handled by
-  the global error handler, see `onError`)
+**Constructor**
+
+- `new HttpClient<TRoutes>(options: HttpClientOptions)`
+  - `baseUrl: string` — trailing slashes trimmed
+  - `headers?: Record<string, string>` — sent on every request
+  - `fetch?: typeof fetch` — alternative implementation
+
+**Methods**
+
+- `get(url, input?)` — and `post`, `put`, `patch`, `delete`. `input` accepts `params`, `query`, `body` and `headers`,
+  each required only when the route needs it. Resolves to the union of the handler's response shapes.
+
+**HttpClientError** — thrown on any non-2xx response, with `status: number`, `body: unknown` and `url: string`.
+
+### Middleware
+
+```ts
+type Middleware<TAdds = Record<never, never>, TNeeds = Record<never, never>>
+function middleware<TAdds, TNeeds>(listener): Middleware<TAdds, TNeeds>
+```
+
+`TAdds` is added to `req.data`; `TNeeds` is required from an earlier middleware. Annotate a constant with the type, or
+call the helper for inline middlewares.
 
 ### Helpers
 
-#### CryptoHelper
+**CryptoHelper**
 
 ```ts
 CryptoHelper.sha256(payload: string): Promise<string>
 CryptoHelper.sha512(payload: string): Promise<string>
+CryptoHelper.hash(payload: string, algorithm: "SHA-1" | "SHA-256" | "SHA-384" | "SHA-512"): Promise<string>
 CryptoHelper.secureRandom(): number
 ```
 
-#### StringHelper
+Hashes are returned as lowercase hex. `secureRandom()` returns a cryptographically random float in `[0, 1]`.
+
+**StringHelper**
 
 ```ts
 StringHelper.generateRandomString(pattern?: string, chars?: string): string
@@ -845,262 +874,136 @@ StringHelper.unescapeHtml(str: string): string
 StringHelper.clean(str: string): string
 ```
 
-**StringHelper.normalizePath**: Normalizes URL paths by joining parts, collapsing multiple slashes, and removing
-trailing slashes (except for root). Used internally for route and request path normalization.
+`generateRandomString` replaces each `X` in the pattern, defaulting to `"XXXX-XXXX-XXXX-XXXX"`.
 
-#### JsonToken
+### JsonToken
 
-`JsonToken` provides a simple JWT-like token system for signing and verifying JSON payloads. It uses SHA-256 for
-signature generation and Base64URL encoding.
-
-**Format:** `{base64url(payload)}.{signature}`
+A small JWT-like signer for JSON payloads, using SHA-256 and Base64URL. Format: `{base64url(payload)}.{signature}`.
 
 ```ts
 class JsonToken {
 	constructor(secret: string);
 	sign(payload: unknown): Promise<string>;
-	verify<T>(token: string): Promise<T | null>;
+	verify<T>(token: string, schema?: Schema<T>): Promise<T | null>;
 }
 ```
 
-**Basic Usage:**
+Signing encodes the payload, appends the secret, and hashes the result. Verifying recomputes the signature and compares
+it in constant time to prevent timing attacks. An invalid token returns `null` instead of throwing. Passing a schema to
+`verify` validates the decoded payload, which is the safest way to trust its shape:
 
 ```ts
-import { JsonToken } from "jsr:@webtools/expressapi";
+import { JsonToken, z } from "jsr:@webtools/expressapi";
 
-// Initialize with a secret key
-const token = new JsonToken("your-secret-key");
+const tokens = new JsonToken(Deno.env.get("JWT_SECRET")!);
+const payloadSchema = z.object({ userId: z.string(), role: z.string() });
 
-// Sign a payload
-const payload = { userId: 123, email: "user@example.com", role: "admin" };
-const signedToken = await token.sign(payload);
-// Returns: "eyJ1c2VySWQiOjEyMywiZW1haWwiOiJ1c2VyQGV4YW1wbGUuY29tIiwicm9sZSI6ImFkbWluIn0.signature"
-
-// Verify and decode
-const decoded = await token.verify<typeof payload>(signedToken);
-// Returns: { userId: 123, email: "user@example.com", role: "admin" }
-
-// Invalid token returns null
-const invalid = await token.verify("invalid.token");
-// Returns: null
+const jwt = await tokens.sign({ userId: "1", role: "admin" });
+const payload = await tokens.verify(jwt, payloadSchema);
+//    ^ { userId: string; role: string } | null
 ```
 
-**How it works:**
-
-1. **Signing:** The payload is JSON stringified, Base64URL encoded, then concatenated with the secret and hashed with
-   SHA-256 to create the signature.
-2. **Verification:** The token is split into payload and signature. The payload is re-hashed with the secret and
-   compared to the provided signature using constant-time comparison to prevent timing attacks.
-3. **Security:** Uses constant-time string comparison to prevent timing attacks. Invalid tokens return `null` instead of
-   throwing errors.
-
-**Example: Token-based Authentication**
-
-```ts
-import { HttpServer, JsonToken, z } from "jsr:@webtools/expressapi";
-
-const server = new HttpServer();
-const token = new JsonToken(Deno.env.get("JWT_SECRET") || "default-secret");
-
-// Issue token
-server.post(
-	"/auth/login",
-	async (req, res) => {
-		const { email, password } = req.body;
-
-		// Validate credentials (example)
-		const user = await validateUser(email, password);
-		if (!user) {
-			return res.status(401).json({ error: "Invalid credentials" });
-		}
-
-		// Create token with user data
-		const jwt = await token.sign({
-			userId: user.id,
-			email: user.email,
-			role: user.role,
-			iat: Date.now(),
-		});
-
-		return res.json({ token: jwt });
-	},
-	[],
-	{
-		body: z.object({
-			email: z.string().email(),
-			password: z.string().min(6),
-		}),
-	},
-);
-
-// Verify token middleware
-const verifyToken = async (req, res) => {
-	const authHeader = req.headers.get("authorization");
-	if (!authHeader?.startsWith("Bearer ")) {
-		return res.status(401).json({ error: "Missing or invalid authorization header" });
-	}
-
-	const jwt = authHeader.slice(7);
-	const payload = await token.verify<{
-		userId: number;
-		email: string;
-		role: string;
-		iat: number;
-	}>(jwt);
-
-	if (!payload) {
-		return res.status(401).json({ error: "Invalid or expired token" });
-	}
-
-	// Attach user data to request
-	req.data = {
-		userId: payload.userId,
-		email: payload.email,
-		role: payload.role,
-	};
-};
-
-// Protected route
-server.get(
-	"/profile",
-	(req, res) => {
-		return res.json({
-			userId: req.data.userId,
-			email: req.data.email,
-			role: req.data.role,
-		});
-	},
-	[verifyToken],
-);
-
-server.listen(5050);
-```
-
-**Note:** This is a simplified token system. For production use cases requiring expiration, refresh tokens, or advanced
-features, consider using a full JWT library.
+There is no expiration or refresh mechanism. For those, use a full JWT library.
 
 ## 💡 Examples
 
-### REST API Example
+### REST API with a typed client
 
 ```ts
+// server.ts
 import { HttpServer, z } from "jsr:@webtools/expressapi";
 
-const server = new HttpServer();
+export const server = new HttpServer()
+	.get("/users", (_req, res) => res.json({ users: [] as { id: string; name: string }[] }))
+	.get("/users/:id", (req, res) => res.json({ id: req.params.id, name: "Alice" }))
+	.post("/users", (req, res) => res.status(201).json({ id: "1", name: req.body.name }), [], {
+		body: z.object({ name: z.string().min(3), email: z.string().email() }),
+	})
+	.put("/users/:id", (req, res) => res.json({ updated: true, id: req.params.id }))
+	.delete("/users/:id", (_req, res) => res.status(204).send(null));
 
-// GET /users
-server.get("/users", (req, res) => {
-	return res.json({ users: [] });
-});
+export type AppRouter = typeof server;
 
-// GET /users/:id
-server.get("/users/:id", (req, res) => {
-	return res.json({ user: { id: req.params.id } });
-});
-
-// POST /users
-server.post(
-	"/users",
-	(req, res) => {
-		return res.status(201).json({ user: req.body });
-	},
-	[],
-	{
-		body: z.object({
-			name: z.string().min(3),
-			email: z.string().email(),
-		}),
-	},
-);
-
-// PUT /users/:id
-server.put("/users/:id", (req, res) => {
-	return res.json({ updated: true, id: req.params.id });
-});
-
-// DELETE /users/:id
-server.delete("/users/:id", (req, res) => {
-	return res.status(204).send(null);
-});
-
-server.listen(5050);
+if (import.meta.main) server.listen(5050);
 ```
 
-### Authentication Example
+```ts
+// client.ts
+import type { AppRouter } from "./server.ts";
+import { HttpClient } from "jsr:@webtools/expressapi";
+
+const client = new HttpClient<AppRouter>({ baseUrl: "http://localhost:5050" });
+
+const users = await client.get("/users");
+const user = await client.get("/users/:id", { params: { id: "1" } });
+const created = await client.post("/users", { body: { name: "Charlie", email: "c@example.com" } });
+```
+
+Guarding `listen()` behind `import.meta.main` matters: it keeps `server.ts` importable for its type alone, so the client
+never starts a server.
+
+### Token authentication with typed context
 
 ```ts
-import { HttpServer, JsonToken, z } from "jsr:@webtools/expressapi";
+import { HttpServer, JsonToken, type Middleware, z } from "jsr:@webtools/expressapi";
 
-const server = new HttpServer();
-const token = new JsonToken("your-secret-key");
+type Session = { userId: string; role: string };
 
-// Login
-server.post(
-	"/login",
-	async (req, res) => {
-		const { email, password } = req.body;
+const tokens = new JsonToken(Deno.env.get("JWT_SECRET") ?? "dev-secret");
+const sessionSchema = z.object({ userId: z.string(), role: z.string() });
 
-		// Validate credentials
-		if (email === "user@example.com" && password === "password") {
-			const jwt = await token.sign({ userId: 123, email });
-			return res.json({ token: jwt });
-		}
-
-		return res.status(401).json({ error: "Invalid credentials" });
-	},
-	[],
-	{
-		body: z.object({
-			email: z.string().email(),
-			password: z.string().min(6),
-		}),
-	},
-);
-
-// Protected route
-const authMiddleware = async (req, res) => {
-	const authHeader = req.headers.get("authorization");
-	if (!authHeader?.startsWith("Bearer ")) {
-		return res.status(401).json({ error: "Unauthorized" });
+const authenticate: Middleware<{ session: Session }> = async (req, res) => {
+	const header = req.headers.get("authorization");
+	if (!header?.startsWith("Bearer ")) {
+		return res.status(401).json({ error: "Missing authorization header" });
 	}
 
-	const jwt = authHeader.slice(7);
-	const payload = await token.verify<{ userId: number }>(jwt);
+	const session = await tokens.verify(header.slice(7), sessionSchema);
+	if (!session) return res.status(401).json({ error: "Invalid token" });
 
-	if (!payload) {
-		return res.status(401).json({ error: "Invalid token" });
-	}
-
-	req.data = { userId: payload.userId };
+	req.data.session = session;
 };
 
-server.get(
-	"/profile",
-	(req, res) => {
-		return res.json({ userId: req.data.userId });
-	},
-	[authMiddleware],
-);
+const requireAdmin: Middleware<{ isAdmin: boolean }, { session: Session }> = (req, res) => {
+	if (req.data.session.role !== "admin") return res.status(403).json({ error: "Forbidden" });
+	req.data.isAdmin = true;
+};
 
-server.listen(5050);
+export const server = new HttpServer()
+	.use(authenticate)
+	.get("/profile", (req, res) => res.json({ userId: req.data.session.userId }))
+	.get("/admin", (req, res) => res.json({ role: req.data.session.role }), [requireAdmin]);
 ```
 
-### File Upload Example
+Every route here requires a token, because `authenticate` is global. The login endpoint that issues tokens must
+therefore live outside this server, or be registered without a global middleware:
 
 ```ts
-server.post("/upload", (req, res) => {
-	const formData = req.body;
-	const file = formData.file; // File object from FormData
+export const publicServer = new HttpServer()
+	.post(
+		"/login",
+		async (req, res) => {
+			const token = await tokens.sign({ userId: "1", role: "admin" });
+			return res.json({ token, email: req.body.email });
+		},
+		[],
+		{
+			body: z.object({ email: z.string().email(), password: z.string().min(6) }),
+		},
+	);
+```
 
-	if (!file) {
-		return res.status(400).json({ error: "No file provided" });
-	}
+### File upload
 
-	// Process file...
-	return res.json({ uploaded: true, filename: file.name });
-});
+```ts
+.post("/upload", (req, res) => {
+	const file = req.body.file;
+	return res.json({ uploaded: true, name: file.name, size: file.size });
+}, [], {
+	body: z.object({ file: z.file() }),
+})
 ```
 
 ## License
 
-Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
+Distributed under the MIT License. See [LICENCE](LICENCE) for more information.
