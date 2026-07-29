@@ -27,9 +27,9 @@ if ("status" in health) {
 const search = await client.get("/search", { query: { q: "alice" } });
 //    ^ { term: string; page: string; results: string[] }
 
-// Mounted routes: the /api prefix is part of the registry.
-const users = await client.get("/api/users");
-//    ^ { id: string; name: string }[]
+// Mounted addRoute: /api prefix + query schema are both in the registry.
+const users = await client.get("/api/users", { query: { q: "alice" } });
+//    ^ { term: string; page: string; users: { id: string; name: string }[] }
 
 // Params are required and typed even though no params schema is declared.
 const user = await client.get("/api/users/:id", { params: { id: "1" } });

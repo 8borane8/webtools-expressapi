@@ -725,23 +725,28 @@ Only enable it when a trusted proxy sets the header, otherwise clients can spoof
 
 ### Dynamic Route Registration
 
-`addRoute()` registers a route from a plain object. Routes added this way do **not** appear in the router's type, so
-they are invisible to `HttpClient`:
+`addRoute()` registers a route from a plain object, with the same typing as `get` / `post` / … — schemas, middleware
+chain, params inference and the response shape all feed into `HttpClient`:
 
 ```ts
-import { type AnyListener, HttpMethods, type Route } from "jsr:@webtools/expressapi";
+import { HttpMethods, HttpServer, z } from "jsr:@webtools/expressapi";
 
-const handler: AnyListener = (_req, res) => res.json({ dynamic: true });
-
-server.addRoute({
-	url: "/dynamic",
-	method: HttpMethods.GET,
-	middlewares: [],
-	requestListener: handler,
-});
+const server = new HttpServer()
+	.addRoute({
+		url: "/users/:id",
+		method: HttpMethods.GET,
+		requestListener: (req, res) => res.json({ id: req.params.id }),
+	})
+	.addRoute({
+		url: "/users",
+		method: HttpMethods.POST,
+		requestListener: (req, res) => res.status(201).json({ name: req.body.name }),
+		schemas: { body: z.object({ name: z.string() }) },
+	});
 ```
 
-Registering the same method and URL twice throws.
+Registering the same method and URL twice throws. If the object is built dynamically (`url: string` rather than a
+literal), the client loses the precise URL union — prefer string literals when you care about typing.
 
 ## 📚 API Reference
 
@@ -783,7 +788,7 @@ class Router<TData = Record<never, never>>
 - `use(prefix, router)` — mount a router under a prefix, combining with the router's own prefix
 - `use(router)` — mount a router using its own prefix
 - `cors(rules: CorsRules): this` — default CORS rules for this router
-- `addRoute(route: Route): this` — dynamic registration, untyped
+- `addRoute(route): this` — same inference as `get` / `post` / …, from a route object
 
 ### HttpRequest
 

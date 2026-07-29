@@ -1,4 +1,4 @@
-import { HttpServer, type Middleware, middleware, Router, z } from "../src/mod.ts";
+import { HttpMethods, HttpServer, type Middleware, middleware, Router, z } from "../src/mod.ts";
 
 type User = { id: string; name: string; role: "admin" | "user" };
 
@@ -23,7 +23,23 @@ const requireAdmin = middleware<{ admin: boolean }, { user: User }>((req) => {
 // ---- Sub-router: declares the context it assumes the parent provides ----
 
 const usersRouter = new Router<{ user: User }>()
-	.get("/users", (_req, res) => res.json([{ id: "1", name: "Alice" }, { id: "2", name: "Bob" }]))
+	// Same inference as .get(): schemas, params and response feed into HttpClient.
+	.addRoute({
+		url: "/users",
+		method: HttpMethods.GET,
+		requestListener: (req, res) =>
+			res.json({
+				term: req.query.q,
+				page: req.query.page ?? "1",
+				users: [{ id: "1", name: "Alice" }, { id: "2", name: "Bob" }],
+			}),
+		schemas: {
+			query: z.object({
+				q: z.string(),
+				page: z.optional(z.string()),
+			}),
+		},
+	})
 	// No params schema: `req.params.id` is inferred from the URL.
 	.get("/users/:id", (req, res) => res.json({ id: req.params.id, name: "Alice" }))
 	.post("/users", (req, res) => res.json({ id: crypto.randomUUID(), name: req.body.name }), [], {

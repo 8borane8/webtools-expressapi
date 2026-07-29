@@ -15,7 +15,7 @@ const client = new HttpClient<typeof server>({
 const results = {
 	health: await client.get("/health"),
 	search: await client.get("/search", { query: { q: "alice" } }),
-	users: await client.get("/api/users"),
+	users: await client.get("/api/users", { query: { q: "alice" } }),
 	user: await client.get("/api/users/:id", { params: { id: "42" } }),
 	created: await client.post("/api/users", { body: { name: "Charlie" } }),
 	removed: await client.delete("/api/users/:id", { params: { id: "42" } }),

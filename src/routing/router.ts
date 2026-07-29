@@ -31,6 +31,22 @@ type RouteArgs<
 	schemas?: TSchemas,
 ];
 
+type TypedRoute<
+	TData,
+	TMethod extends HttpMethods,
+	TUrl extends string,
+	TSchemas extends Schemas,
+	TReturn,
+	TMws extends readonly unknown[] = readonly [],
+> = {
+	url: TUrl;
+	method: TMethod;
+	requestListener: TypedListener<TData & ChainAdds<TMws>, TSchemas, TUrl, TReturn>;
+	middlewares?: ValidateChain<TData, TMws>;
+	schemas?: TSchemas;
+	cors?: CorsRules;
+};
+
 type Registered<TSelf, TMethod extends HttpMethods, TUrl extends string, TSchemas extends Schemas, TReturn> =
 	& TSelf
 	& RouteMarker<RouteEntry<TMethod, TUrl, TSchemas, BodyOf<TReturn>>>;
@@ -49,7 +65,27 @@ export class Router<TData = Record<never, never>> {
 		}
 	}
 
-	public addRoute(route: Route): this {
+	public addRoute<
+		TMethod extends HttpMethods,
+		TUrl extends string,
+		TSchemas extends Schemas,
+		TReturn extends ListenerReturn,
+		TMws extends readonly unknown[] = readonly [],
+	>(
+		route: TypedRoute<InferData<this>, TMethod, TUrl, TSchemas, TReturn, TMws>,
+	): Registered<this, TMethod, TUrl, TSchemas, TReturn> {
+		this.pushRoute({
+			url: route.url,
+			method: route.method,
+			middlewares: (route.middlewares ?? []) as AnyListener[],
+			requestListener: route.requestListener as AnyListener,
+			schemas: route.schemas,
+			cors: route.cors,
+		});
+		return this as Registered<this, TMethod, TUrl, TSchemas, TReturn>;
+	}
+
+	private pushRoute(route: Route): void {
 		const routes = this.routes.get(route.method)!;
 
 		const prefixedUrl = StringHelper.normalizePath(this.prefix, route.url);
@@ -58,7 +94,6 @@ export class Router<TData = Record<never, never>> {
 		}
 
 		routes.push({ ...route, url: prefixedUrl });
-		return this;
 	}
 
 	public get<
@@ -118,7 +153,7 @@ export class Router<TData = Record<never, never>> {
 
 	// deno-lint-ignore no-explicit-any
 	private register(method: HttpMethods, [url, requestListener, middlewares = [], schemas]: any): any {
-		this.addRoute({
+		this.pushRoute({
 			url,
 			method,
 			middlewares: middlewares as AnyListener[],
@@ -167,7 +202,7 @@ export class Router<TData = Record<never, never>> {
 	private mountRouter(router: Router, prefix = "/"): void {
 		for (const routes of router.routes.values()) {
 			for (const route of routes) {
-				this.addRoute({
+				this.pushRoute({
 					...route,
 					url: StringHelper.normalizePath(prefix, route.url),
 					middlewares: [...router.middlewares, ...route.middlewares],
