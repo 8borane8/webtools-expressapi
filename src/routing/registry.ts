@@ -11,6 +11,10 @@ export const dataMarker: unique symbol = Symbol("expressapi.data");
 export type DataMarker<TData> = { readonly [dataMarker]: TData };
 export type InferData<T> = T extends DataMarker<infer TData> ? TData : Record<never, never>;
 
+export const expectedMarker: unique symbol = Symbol("expressapi.expected");
+export type ExpectedMarker<TData> = { readonly [expectedMarker]: TData };
+export type InferExpected<T> = T extends ExpectedMarker<infer TData> ? TData : Record<never, never>;
+
 export type RouteTypeEntry<TSchemas extends Schemas, TResponse> = {
 	schemas: TSchemas;
 	response: TResponse;

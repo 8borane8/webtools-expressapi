@@ -222,18 +222,21 @@ const usersRouter = new Router("/users").get("/", handler); // internal route: /
 const server = new HttpServer().use("/api", usersRouter); // final route: /api/users
 ```
 
-Mounting is checked at compile time. If the parent does not provide the context the sub-router declared, you get a
-readable error instead of a runtime crash:
+Mounting is checked at compile time against what the sub-router declared with `new Router<TData>()`. Middlewares the
+child registers with its own `.use()` do **not** become requirements on the parent — they travel with the mounted
+routes:
 
 ```ts
-// ❌ This router expects context data the parent does not provide.
-//    Register the middleware that supplies it before use().
+// ❌ Parent is missing `user`.
 new HttpServer().use("/api", usersRouter);
-```
 
-The same rule applies to context a sub-router accumulated itself: a router that calls `.use(auth)` internally can only
-be mounted on a parent that also provides what `auth` adds. Declare the context with `Router<TData>` and let the parent
-supply it, as above.
+// ✅ Child expects `user` from the parent, then adds more context itself.
+const orgs = new Router<{ user: User }>()
+	.use(loadOrganization)
+	.get("/", (req, res) => res.json({ org: req.data.organization }));
+
+new HttpServer().use(auth).use("/orgs", orgs);
+```
 
 ### URL Normalization
 

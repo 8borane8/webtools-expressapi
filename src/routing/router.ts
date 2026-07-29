@@ -4,12 +4,13 @@ import { StringHelper } from "../helpers/string.ts";
 import type { Schemas } from "../http/context.ts";
 import type { AnyListener } from "./listener.ts";
 import { HttpMethods } from "../http/methods.ts";
-import { dataMarker } from "./registry.ts";
+import { dataMarker, expectedMarker } from "./registry.ts";
 import type { Route } from "./route.ts";
 import type {
 	BodyOf,
 	DataMarker,
 	InferData,
+	InferExpected,
 	InferRoutes,
 	ListenerReturn,
 	PrefixRoutes,
@@ -53,6 +54,7 @@ type Registered<TSelf, TMethod extends HttpMethods, TUrl extends string, TSchema
 
 export class Router<TData = Record<never, never>> {
 	declare readonly [dataMarker]: TData;
+	declare readonly [expectedMarker]: TData;
 
 	protected readonly routes: Map<HttpMethods, Route[]> = new Map();
 	protected readonly middlewares: AnyListener[] = [];
@@ -213,7 +215,7 @@ export class Router<TData = Record<never, never>> {
 	}
 }
 
-type MountableRouter<TParent, TRouter> = InferData<TParent> extends InferData<TRouter> ? TRouter
+type MountableRouter<TParent, TRouter> = InferData<TParent> extends InferExpected<TRouter> ? TRouter
 	: "This router expects context data the parent does not provide. Register the middleware that supplies it before use().";
 
 type ApplicableMiddleware<TParent, TAdds, TNeeds> = InferData<TParent> extends TNeeds ? Middleware<TAdds, TNeeds>
