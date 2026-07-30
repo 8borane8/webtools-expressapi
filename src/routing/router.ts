@@ -95,7 +95,11 @@ export class Router<TData = Record<never, never>> {
 			throw new Error(`The route '${prefixedUrl}' is already registered for the '${route.method}' method.`);
 		}
 
-		routes.push({ ...route, url: prefixedUrl });
+		routes.push({
+			...route,
+			url: prefixedUrl,
+			middlewares: [...this.middlewares, ...route.middlewares],
+		});
 	}
 
 	public get<
@@ -207,7 +211,6 @@ export class Router<TData = Record<never, never>> {
 				this.pushRoute({
 					...route,
 					url: StringHelper.normalizePath(prefix, route.url),
-					middlewares: [...router.middlewares, ...route.middlewares],
 					cors: mergeCorsRules(this.corsRules, router.corsRules, route.cors),
 				});
 			}

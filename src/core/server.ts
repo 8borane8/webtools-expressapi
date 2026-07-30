@@ -108,11 +108,8 @@ export class HttpServer extends Router {
 		const invalid = this.validate(route, req, res);
 		if (invalid) return invalid;
 
-		const globalMiddlewareResponse = await this.executeMiddlewares(this.middlewares, req, res);
-		if (globalMiddlewareResponse) return globalMiddlewareResponse;
-
-		const routeMiddlewareResponse = await this.executeMiddlewares(route.middlewares, req, res);
-		if (routeMiddlewareResponse) return routeMiddlewareResponse;
+		const middlewareResponse = await this.executeMiddlewares(route.middlewares, req, res);
+		if (middlewareResponse) return middlewareResponse;
 
 		return await route.requestListener(req, res) || await this.handleNotFound(req, res);
 	}
