@@ -40,6 +40,8 @@ export type HttpClientOptions = {
 	baseUrl: string;
 	headers?: Record<string, string>;
 	fetch?: typeof fetch;
+	/** When true, non-2xx responses throw `HttpClientError`. Defaults to true. */
+	throwOnError?: boolean;
 };
 
 type RawInput = {
@@ -129,7 +131,9 @@ export class HttpClient<TRoutes> {
 			}
 		}
 
-		if (!response.ok) throw new HttpClientError(response.status, payload, url);
+		if (!response.ok && this.options.throwOnError !== false) {
+			throw new HttpClientError(response.status, payload, url);
+		}
 		return payload;
 	}
 

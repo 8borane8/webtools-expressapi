@@ -61,7 +61,7 @@ export class Router<TData = Record<never, never>> {
 
 	protected corsRules: CorsRules = {};
 
-	constructor(protected readonly prefix: string = "/") {
+	constructor() {
 		for (const method of Object.values(HttpMethods)) {
 			this.routes.set(method, []);
 		}
@@ -90,14 +90,14 @@ export class Router<TData = Record<never, never>> {
 	private pushRoute(route: Route): void {
 		const routes = this.routes.get(route.method)!;
 
-		const prefixedUrl = StringHelper.normalizePath(this.prefix, route.url);
-		if (routes.some((r) => r.url === prefixedUrl)) {
-			throw new Error(`The route '${prefixedUrl}' is already registered for the '${route.method}' method.`);
+		const url = StringHelper.normalizePath(route.url);
+		if (routes.some((r) => r.url === url)) {
+			throw new Error(`The route '${url}' is already registered for the '${route.method}' method.`);
 		}
 
 		routes.push({
 			...route,
-			url: prefixedUrl,
+			url,
 			middlewares: [...this.middlewares, ...route.middlewares],
 		});
 	}
@@ -174,19 +174,19 @@ export class Router<TData = Record<never, never>> {
 		return this;
 	}
 
-	public use<TPrefix extends string, TRouter extends Router>(
+	public use<TPrefix extends string, TRouter extends AnyRouter>(
 		prefix: TPrefix,
 		router: MountableRouter<this, TRouter>,
 	): this & RouteMarker<PrefixRoutes<InferRoutes<TRouter>, TPrefix>>;
 
-	public use<TRouter extends Router>(
+	public use<TRouter extends AnyRouter>(
 		router: MountableRouter<this, TRouter>,
 	): this & RouteMarker<PrefixRoutes<InferRoutes<TRouter>, "/">>;
 
 	public use<TAdds, TNeeds>(
 		middleware: ApplicableMiddleware<this, TAdds, TNeeds>,
 	): this & DataMarker<TAdds>;
-	public use(mpr: AnyListener | string | Router, router?: Router): this {
+	public use(mpr: AnyListener | string | AnyRouter, router?: AnyRouter): this {
 		if (typeof mpr === "string" && router) {
 			this.mountRouter(router, mpr);
 			return this;
@@ -205,7 +205,7 @@ export class Router<TData = Record<never, never>> {
 		return this;
 	}
 
-	private mountRouter(router: Router, prefix = "/"): void {
+	private mountRouter(router: AnyRouter, prefix = "/"): void {
 		for (const routes of router.routes.values()) {
 			for (const route of routes) {
 				this.pushRoute({
@@ -217,6 +217,9 @@ export class Router<TData = Record<never, never>> {
 		}
 	}
 }
+
+// deno-lint-ignore no-explicit-any
+type AnyRouter = Router<any>;
 
 type MountableRouter<TParent, TRouter> = InferData<TParent> extends InferExpected<TRouter> ? TRouter
 	: "This router expects context data the parent does not provide. Register the middleware that supplies it before use().";
