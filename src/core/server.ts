@@ -45,7 +45,11 @@ export class HttpServer extends Router {
 	}
 
 	private async handleError(error: unknown, req: HttpRequest, res: HttpResponse): Promise<Response> {
-		return (await this.errorHandler?.(error, req, res)) || res.status(500).json({
+		const handled = await this.errorHandler?.(error, req, res);
+		if (handled) return handled;
+
+		console.error(`[${req.method} ${req.url}]`, error);
+		return res.status(500).json({
 			success: false,
 			error: "500 Internal Server Error.",
 		});
