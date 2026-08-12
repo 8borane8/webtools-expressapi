@@ -6,9 +6,22 @@ export type InferShape<T extends Record<string, Schema>> =
 	& { [K in Exclude<keyof T, OptionalKeys<T>>]: InferSchemaType<T[K]> }
 	& { [K in OptionalKeys<T>]?: InferSchemaType<T[K]> };
 
+type PartialShape<T extends Record<string, Schema>> = {
+	[K in keyof T]: OptionalSchema<InferSchemaType<T[K]>>;
+};
+
 export class ObjectSchema<T extends Record<string, Schema>> extends BaseSchema<InferShape<T>> {
 	constructor(private readonly shape: T, private readonly message?: string) {
 		super();
+	}
+
+	/** Make every property optional (shallow). */
+	partial(): ObjectSchema<PartialShape<T>> {
+		const shape = {} as PartialShape<T>;
+		for (const key of Object.keys(this.shape) as Array<keyof T>) {
+			shape[key] = new OptionalSchema(this.shape[key]) as PartialShape<T>[typeof key];
+		}
+		return new ObjectSchema(shape, this.message);
 	}
 
 	override parse(data: unknown): InferShape<T> {

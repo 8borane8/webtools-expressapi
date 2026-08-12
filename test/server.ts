@@ -30,7 +30,7 @@ const usersRouter = new Router<{ user: User }>()
 		requestListener: (req, res) =>
 			res.json({
 				term: req.query.q,
-				page: req.query.page ?? "1",
+				page: req.query.page || "1",
 				users: [{ id: "1", name: "Alice" }, { id: "2", name: "Bob" }],
 			}),
 		schemas: {
@@ -62,7 +62,7 @@ export const server = new HttpServer()
 	.use(authMid)
 	.get(
 		"/search",
-		(req, res) => res.json({ term: req.query.q, page: req.query.page ?? "1", results: [] as string[] }),
+		(req, res) => res.json({ term: req.query.q, page: req.query.page || "1", results: [] as string[] }),
 		[],
 		{
 			query: z.object({

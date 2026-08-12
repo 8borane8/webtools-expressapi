@@ -67,7 +67,7 @@ export class HttpClient<TRoutes> {
 	private readonly baseUrl: string;
 
 	constructor(private readonly options: HttpClientOptions) {
-		this.fetchImpl = options.fetch ?? globalThis.fetch;
+		this.fetchImpl = options.fetch || globalThis.fetch.bind(globalThis);
 		this.baseUrl = options.baseUrl.replace(/\/+$/, "");
 	}
 

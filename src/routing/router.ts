@@ -79,7 +79,7 @@ export class Router<TData = Record<never, never>> {
 		this.pushRoute({
 			url: route.url,
 			method: route.method,
-			middlewares: (route.middlewares ?? []) as AnyListener[],
+			middlewares: (route.middlewares || []) as AnyListener[],
 			requestListener: route.requestListener as AnyListener,
 			schemas: route.schemas,
 			cors: route.cors,

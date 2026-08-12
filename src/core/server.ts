@@ -208,7 +208,7 @@ export class HttpServer extends Router {
 	}
 
 	private findPreflightResource(request: Request, pathname: string): Route | null {
-		const acrm = request.headers.get("access-control-request-method")?.trim().toUpperCase() ?? "";
+		const acrm = request.headers.get("access-control-request-method")?.trim().toUpperCase() || "";
 		if (acrm && this.routes.has(acrm as HttpMethods)) {
 			const match = this.findMatchingRoute(acrm as HttpMethods, pathname);
 			if (match) return match;
