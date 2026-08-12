@@ -155,6 +155,10 @@ export class HttpServer extends Router {
 				return Object.fromEntries(new URLSearchParams(text));
 			}
 
+			if (contentType.startsWith("application/octet-stream")) {
+				return await request.arrayBuffer();
+			}
+
 			return await request.text();
 		} catch {
 			return null;
