@@ -1,25 +1,40 @@
-type DigestAlgorithm = "SHA-1" | "SHA-256" | "SHA-384" | "SHA-512";
+import { encodeHex } from "@std/encoding/hex";
 
-export abstract class CryptoHelper {
-	private static readonly encoder = new TextEncoder();
+const encoder = new TextEncoder();
 
-	public static async hash(payload: string, algorithm: DigestAlgorithm): Promise<string> {
-		const hashBuffer = await crypto.subtle.digest(algorithm, CryptoHelper.encoder.encode(payload));
-		const hashArray = Array.from(new Uint8Array(hashBuffer));
+async function digest(algorithm: "SHA-256" | "SHA-512", payload: string): Promise<string> {
+	return encodeHex(await crypto.subtle.digest(algorithm, encoder.encode(payload)));
+}
 
-		return hashArray.map((byte) => byte.toString(16).padStart(2, "0")).join("");
-	}
+/**
+ * SHA-256 hash of a string.
+ *
+ * @example
+ * ```ts
+ * await CryptoHelper.sha256("abc"); // "ba7816bf..."
+ * ```
+ * @param payload The text to hash (UTF-8).
+ * @returns The digest as a lowercase hex string.
+ */
+export function sha256(payload: string): Promise<string> {
+	return digest("SHA-256", payload);
+}
 
-	public static sha512(payload: string): Promise<string> {
-		return CryptoHelper.hash(payload, "SHA-512");
-	}
+/**
+ * SHA-512 hash of a string.
+ *
+ * @param payload The text to hash (UTF-8).
+ * @returns The digest as a lowercase hex string.
+ */
+export function sha512(payload: string): Promise<string> {
+	return digest("SHA-512", payload);
+}
 
-	public static sha256(payload: string): Promise<string> {
-		return CryptoHelper.hash(payload, "SHA-256");
-	}
-
-	public static secureRandom(): number {
-		const randomArray = new Uint32Array(1);
-		return crypto.getRandomValues(randomArray)[0] / 0xffffffff;
-	}
+/**
+ * Uniform random float in [0, 1), from the system CSPRNG. Unlike `Math.random()`, it is safe for secrets.
+ *
+ * @returns A number greater than or equal to 0 and strictly less than 1.
+ */
+export function secureRandom(): number {
+	return crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
 }

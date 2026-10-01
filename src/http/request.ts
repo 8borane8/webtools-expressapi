@@ -1,38 +1,44 @@
+import { getCookies } from "@std/http/cookie";
 import type { DefaultContext, RequestContext } from "./context.ts";
-import type { HttpMethods } from "./methods.ts";
 
+/**
+ * An incoming request, as seen by handlers and middlewares. `query`, `params` and `body` are typed by the route's
+ * schemas, and `data` by the middlewares registered before it.
+ */
 export class HttpRequest<TCtx extends RequestContext = DefaultContext> {
-	public readonly query: TCtx["query"] = {} as TCtx["query"];
-	public readonly params: TCtx["params"] = {} as TCtx["params"];
+	// No prototype: `req.query.constructor` is `undefined` unless the client sent it.
+	/** Query string values. Replaced by the parsed result when the route has a `query` schema. */
+	public query: TCtx["query"] = Object.create(null);
+	/** URL `:params`, URI-decoded. Replaced by the parsed result when the route has a `params` schema. */
+	public params: TCtx["params"] = Object.create(null);
 
-	public readonly cookies: Record<string, string> = {};
-
+	/** Data shared between middlewares and the handler. */
 	public data: TCtx["data"] = Object.create(null);
 
+	private parsedCookies?: Partial<Record<string, string>>;
+
+	/**
+	 * Creates the request handed to handlers. Done by the server, not meant to be called directly.
+	 *
+	 * @param path The normalized pathname, without the query string nor trailing slash.
+	 * @param method The HTTP method.
+	 * @param headers The request headers.
+	 * @param body The parsed body, according to its content type. Replaced by the parsed result when the route has a
+	 * `body` schema.
+	 * @param ip The client IP, `null` when unknown.
+	 * @param raw The underlying request. Its body is consumed once `body` is parsed.
+	 */
 	constructor(
-		public readonly url: string,
-		public readonly method: HttpMethods,
+		public readonly path: string,
+		public readonly method: string,
 		public readonly headers: Headers,
 		public body: TCtx["body"],
 		public readonly ip: string | null,
 		public readonly raw: Request,
-	) {
-		if (this.headers.has("cookie")) {
-			const cookie = this.headers.get("cookie")!;
-			for (const part of cookie.split(";")) {
-				const separatorIndex = part.indexOf("=");
-				if (separatorIndex === -1) continue;
+	) {}
 
-				const name = part.slice(0, separatorIndex).trim();
-				if (!name) continue;
-
-				const value = part.slice(separatorIndex + 1).trim();
-				try {
-					this.cookies[name] = decodeURIComponent(value);
-				} catch {
-					this.cookies[name] = value;
-				}
-			}
-		}
+	/** Cookies sent by the client, parsed on first access. Values are not URI-decoded. */
+	public get cookies(): Partial<Record<string, string>> {
+		return this.parsedCookies ??= getCookies(this.headers);
 	}
 }

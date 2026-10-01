@@ -10,8 +10,8 @@
   <img src="https://img.shields.io/github/forks/8borane8/webtools-expressapi.svg" alt="forks" />
 </p>
 
-ExpressAPI is a small, simple, and type-safe web framework for Deno, built on Web Standards. Clean abstractions, elegant
-APIs, and almost no dependencies.
+ExpressAPI is a small, simple, and type-safe web framework for Deno, built on the standard `Request` / `Response` /
+`fetch` APIs. Clean abstractions, elegant APIs, and almost no dependencies.
 
 Typed end to end, not only on the server.
 

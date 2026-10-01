@@ -1,266 +1,211 @@
 import { BaseSchema } from "./base.ts";
 
+const numeric = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
+
+/** Validates a string. Only real strings are accepted: numbers, objects and arrays are rejected. */
 export class StringSchema extends BaseSchema<string> {
-	private minLength?: { value: number; message: string };
-	private maxLength?: { value: number; message: string };
-	private exactLength?: { value: number; message: string };
-	private startsWithConstraint?: { prefix: string; message: string };
-	private endsWithConstraint?: { suffix: string; message: string };
-	private patterns: Array<{ pattern: RegExp; message: string }> = [];
-	private isEmail?: string;
-	private isUuid?: string;
-	private isUrl?: string;
-
-	constructor(private readonly message?: string) {
-		super();
+	/** Requires at least `length` characters. */
+	min(length: number, message?: string): this {
+		return this.addCheck(
+			(v) => v.length >= length,
+			"too_small",
+			`String must be at least ${length} characters`,
+			message,
+		);
 	}
 
-	min(length: number, message: string = this.message ?? `String must be at least ${length} characters`): this {
-		this.minLength = { value: length, message };
-		return this;
+	/** Requires at most `length` characters. */
+	max(length: number, message?: string): this {
+		return this.addCheck(
+			(v) => v.length <= length,
+			"too_big",
+			`String must be at most ${length} characters`,
+			message,
+		);
 	}
 
-	max(length: number, message: string = this.message ?? `String must be at most ${length} characters`): this {
-		this.maxLength = { value: length, message };
-		return this;
+	/** Requires exactly `length` characters. */
+	length(length: number, message?: string): this {
+		return this.addCheck(
+			(v) => v.length === length,
+			"invalid_length",
+			`String must be exactly ${length} characters`,
+			message,
+		);
 	}
 
-	length(length: number, message: string = this.message ?? `String must be exactly ${length} characters`): this {
-		this.exactLength = { value: length, message };
-		return this;
+	/** Requires the string to start with `prefix`. */
+	startsWith(prefix: string, message?: string): this {
+		return this.addCheck(
+			(v) => v.startsWith(prefix),
+			"invalid_string",
+			`String must start with "${prefix}"`,
+			message,
+		);
 	}
 
-	startsWith(prefix: string, message: string = this.message ?? `String must start with "${prefix}"`): this {
-		this.startsWithConstraint = { prefix, message };
-		return this;
+	/** Requires the string to end with `suffix`. */
+	endsWith(suffix: string, message?: string): this {
+		return this.addCheck((v) => v.endsWith(suffix), "invalid_string", `String must end with "${suffix}"`, message);
 	}
 
-	endsWith(suffix: string, message: string = this.message ?? `String must end with "${suffix}"`): this {
-		this.endsWithConstraint = { suffix, message };
-		return this;
+	/** Requires the string to match `pattern`. */
+	regex(pattern: RegExp, message?: string): this {
+		return this.addCheck(
+			(v) => pattern.test(v),
+			"invalid_string",
+			"String does not match required pattern",
+			message,
+		);
 	}
 
-	regex(pattern: RegExp, message: string = this.message ?? "String does not match required pattern"): this {
-		this.patterns.push({ pattern, message });
-		return this;
+	/** Requires a basic email format (`a@b.c`). */
+	email(message?: string): this {
+		return this.addCheck(
+			(v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+			"invalid_string",
+			"Invalid email format",
+			message,
+		);
 	}
 
-	email(message: string = this.message ?? "Invalid email format"): this {
-		this.isEmail = message;
-		return this;
+	/** Requires a UUID (any version). */
+	uuid(message?: string): this {
+		const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+		return this.addCheck((v) => uuid.test(v), "invalid_string", "Invalid UUID format", message);
 	}
 
-	uuid(message: string = this.message ?? "Invalid UUID format"): this {
-		this.isUuid = message;
-		return this;
+	/** Requires a parsable absolute URL. */
+	url(message?: string): this {
+		return this.addCheck((v) => URL.canParse(v), "invalid_string", "Invalid URL format", message);
 	}
 
-	url(message: string = this.message ?? "Invalid URL format"): this {
-		this.isUrl = message;
-		return this;
-	}
-
-	override parse(data: unknown): string {
-		if (data === undefined || data === null) {
-			const errorMsg = this.message ?? `Expected string, got ${String(data)}`;
-			throw this.createError([], errorMsg, "invalid_type");
-		}
-
-		const str = String(data);
-
-		if (this.minLength && str.length < this.minLength.value) {
-			throw this.createError([], this.minLength.message, "too_small");
-		}
-
-		if (this.maxLength && str.length > this.maxLength.value) {
-			throw this.createError([], this.maxLength.message, "too_big");
-		}
-
-		if (this.exactLength && str.length !== this.exactLength.value) {
-			throw this.createError([], this.exactLength.message, "invalid_length");
-		}
-
-		if (this.startsWithConstraint && !str.startsWith(this.startsWithConstraint.prefix)) {
-			throw this.createError([], this.startsWithConstraint.message, "invalid_string");
-		}
-
-		if (this.endsWithConstraint && !str.endsWith(this.endsWithConstraint.suffix)) {
-			throw this.createError([], this.endsWithConstraint.message, "invalid_string");
-		}
-
-		for (const { pattern, message } of this.patterns) {
-			if (!pattern.test(str)) {
-				throw this.createError([], message, "invalid_string");
-			}
-		}
-
-		if (this.isEmail !== undefined) {
-			const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
-			if (!emailRegex.test(str)) {
-				throw this.createError([], this.isEmail, "invalid_string");
-			}
-		}
-
-		if (this.isUuid !== undefined) {
-			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-			if (!uuidRegex.test(str)) {
-				throw this.createError([], this.isUuid, "invalid_string");
-			}
-		}
-
-		if (this.isUrl !== undefined) {
-			const urlRegex = /^https?:\/\/.+/;
-			if (!urlRegex.test(str)) {
-				throw this.createError([], this.isUrl, "invalid_string");
-			}
-		}
-
-		return str;
-	}
-}
-
-export class NumberSchema extends BaseSchema<number> {
-	private minValue?: { value: number; message: string };
-	private maxValue?: { value: number; message: string };
-	private isInt?: string;
-	private isPositive?: string;
-	private isNegative?: string;
-
-	constructor(private readonly message?: string) {
-		super();
-	}
-
-	min(value: number, message: string = this.message ?? `Number must be at least ${value}`): this {
-		this.minValue = { value, message };
-		return this;
-	}
-
-	max(value: number, message: string = this.message ?? `Number must be at most ${value}`): this {
-		this.maxValue = { value, message };
-		return this;
-	}
-
-	int(message: string = this.message ?? "Expected integer, got float"): this {
-		this.isInt = message;
-		return this;
-	}
-
-	positive(message: string = this.message ?? "Number must be positive"): this {
-		this.isPositive = message;
-		return this;
-	}
-
-	negative(message: string = this.message ?? "Number must be negative"): this {
-		this.isNegative = message;
-		return this;
-	}
-
-	override parse(data: unknown): number {
-		if (data === undefined || data === null || data === "") {
-			const errorMsg = this.message ?? `Expected number, got ${data === "" ? "empty string" : String(data)}`;
-			throw this.createError([], errorMsg, "invalid_type");
-		}
-
-		const num = Number(data);
-
-		if (isNaN(num)) {
-			const errorMsg = this.message ?? `Cannot convert "${data}" to number`;
-			throw this.createError([], errorMsg, "invalid_type");
-		}
-
-		if (this.isInt && !Number.isInteger(num)) {
-			throw this.createError([], this.isInt, "invalid_type");
-		}
-
-		if (this.minValue && num < this.minValue.value) {
-			throw this.createError([], this.minValue.message, "too_small");
-		}
-
-		if (this.maxValue && num > this.maxValue.value) {
-			throw this.createError([], this.maxValue.message, "too_big");
-		}
-
-		if (this.isPositive && num <= 0) {
-			throw this.createError([], this.isPositive, "too_small");
-		}
-
-		if (this.isNegative && num >= 0) {
-			throw this.createError([], this.isNegative, "too_big");
-		}
-
-		return num;
-	}
-}
-
-export class BooleanSchema extends BaseSchema<boolean> {
-	constructor(private readonly message?: string) {
-		super();
-	}
-
-	override parse(data: unknown): boolean {
-		const str = String(data);
-
-		if (str === "true" || str === "1" || str === "on") {
-			return true;
-		}
-
-		if (str === "false" || str === "0" || str === "off") {
-			return false;
-		}
-
-		const errorMsg = this.message ?? `Cannot convert "${str}" to boolean. Expected "true", "false", "1", or "0"`;
-		throw this.createError([], errorMsg, "invalid_type");
-	}
-}
-
-export class FileSchema extends BaseSchema<File> {
-	private minSizeConstraint?: { value: number; message: string };
-	private maxSizeConstraint?: { value: number; message: string };
-	private allowedTypes?: { types: string[]; message: string };
-
-	constructor(private readonly message?: string) {
-		super();
-	}
-
-	minSize(size: number, message: string = this.message ?? `File size must be at least ${size} bytes`): this {
-		this.minSizeConstraint = { value: size, message };
-		return this;
-	}
-
-	maxSize(size: number, message: string = this.message ?? `File size must be at most ${size} bytes`): this {
-		this.maxSizeConstraint = { value: size, message };
-		return this;
-	}
-
-	type(types: string[], message: string = this.message ?? `File type must be one of: ${types.join(", ")}`): this {
-		this.allowedTypes = { types, message };
-		return this;
-	}
-
-	override parse(data: unknown): File {
-		if (!(data instanceof File)) {
-			const errorMsg = this.message ?? `Expected File, got ${typeof data}`;
-			throw this.createError([], errorMsg, "invalid_type");
-		}
-
-		if (this.minSizeConstraint && data.size < this.minSizeConstraint.value) {
-			throw this.createError([], this.minSizeConstraint.message, "too_small");
-		}
-
-		if (this.maxSizeConstraint && data.size > this.maxSizeConstraint.value) {
-			throw this.createError([], this.maxSizeConstraint.message, "too_big");
-		}
-
-		if (this.allowedTypes && !this.allowedTypes.types.find((type) => data.type.startsWith(type))) {
-			throw this.createError([], this.allowedTypes.message, "invalid_type");
-		}
-
+	protected override coerce(data: unknown): string {
+		if (typeof data !== "string") this.fail(`Expected string, got ${typeof data}`, "invalid_type");
 		return data;
 	}
 }
 
+/**
+ * Validates a number. Accepts finite numbers and decimal strings (`"5"`, `"-1.5"`, `"1e3"`), since query strings,
+ * params and forms only carry strings. Rejects `NaN`, `Infinity`, hex strings, booleans, arrays and empty strings.
+ */
+export class NumberSchema extends BaseSchema<number> {
+	/** Requires a value greater than or equal to `value`. */
+	min(value: number, message?: string): this {
+		return this.addCheck((v) => v >= value, "too_small", `Number must be at least ${value}`, message);
+	}
+
+	/** Requires a value less than or equal to `value`. */
+	max(value: number, message?: string): this {
+		return this.addCheck((v) => v <= value, "too_big", `Number must be at most ${value}`, message);
+	}
+
+	/** Requires an integer. */
+	int(message?: string): this {
+		return this.addCheck(Number.isInteger, "invalid_type", "Expected integer, got float", message);
+	}
+
+	/** Requires a value strictly greater than 0. */
+	positive(message?: string): this {
+		return this.addCheck((v) => v > 0, "too_small", "Number must be positive", message);
+	}
+
+	/** Requires a value strictly less than 0. */
+	negative(message?: string): this {
+		return this.addCheck((v) => v < 0, "too_big", "Number must be negative", message);
+	}
+
+	protected override coerce(data: unknown): number {
+		if (typeof data === "number" && Number.isFinite(data)) return data;
+
+		if (typeof data === "string" && numeric.test(data.trim())) {
+			const value = Number(data);
+			if (Number.isFinite(value)) return value;
+		}
+
+		return this.fail(
+			typeof data === "string" ? `Cannot convert "${data}" to number` : `Expected number, got ${typeof data}`,
+			"invalid_type",
+		);
+	}
+}
+
+/** Validates a boolean. Accepts `true`/`false`, and the strings or numbers `"true"`, `"1"`, `"on"`, `"false"`, `"0"`, `"off"`. */
+export class BooleanSchema extends BaseSchema<boolean> {
+	protected override coerce(data: unknown): boolean {
+		if (typeof data === "boolean") return data;
+
+		const str = typeof data === "string" || typeof data === "number" ? String(data) : "";
+		if (str === "true" || str === "1" || str === "on") return true;
+		if (str === "false" || str === "0" || str === "off") return false;
+
+		return this.fail(
+			`Cannot convert "${str || typeof data}" to boolean. Expected "true", "false", "1", or "0"`,
+			"invalid_type",
+		);
+	}
+}
+
+/** Validates an uploaded `File` (from a multipart body). */
+export class FileSchema extends BaseSchema<File> {
+	/** Requires a file of at least `size` bytes. */
+	minSize(size: number, message?: string): this {
+		return this.addCheck((v) => v.size >= size, "too_small", `File size must be at least ${size} bytes`, message);
+	}
+
+	/** Requires a file of at most `size` bytes. */
+	maxSize(size: number, message?: string): this {
+		return this.addCheck((v) => v.size <= size, "too_big", `File size must be at most ${size} bytes`, message);
+	}
+
+	/** Requires the media type to start with one of `types`, e.g. `["image/", "application/pdf"]`. */
+	type(types: string[], message?: string): this {
+		return this.addCheck(
+			(v) => types.some((type) => v.type.startsWith(type)),
+			"invalid_type",
+			`File type must be one of: ${types.join(", ")}`,
+			message,
+		);
+	}
+
+	protected override coerce(data: unknown): File {
+		if (!(data instanceof File)) this.fail(`Expected File, got ${typeof data}`, "invalid_type");
+		return data;
+	}
+}
+
+/**
+ * Validates an exact value. Since query, params and forms only carry strings, `"5"` matches the literal `5`
+ * and `"true"` matches `true`.
+ */
+export class LiteralSchema<T extends string | number | boolean | null> extends BaseSchema<T> {
+	/**
+	 * @param value The only accepted value.
+	 * @param message Replaces the default error message.
+	 */
+	constructor(private readonly value: T, message?: string) {
+		super(message);
+	}
+
+	protected override coerce(data: unknown): T {
+		const { value } = this;
+		const matches = data === value ||
+			((typeof value === "number" || typeof value === "boolean") && data === String(value));
+
+		if (!matches) {
+			this.fail(
+				`Expected ${JSON.stringify(value)}, got ${JSON.stringify(data) ?? String(data)}`,
+				"invalid_literal",
+			);
+		}
+		return value;
+	}
+}
+
+/** Accepts any value without checking it. */
 export class AnySchema extends BaseSchema<unknown> {
-	override parse(data: unknown): unknown {
+	protected override coerce(data: unknown): unknown {
 		return data;
 	}
 }
