@@ -26,7 +26,7 @@ export class HttpRequest<TCtx extends RequestContext = DefaultContext> {
 	 * @param body The parsed body, according to its content type. Replaced by the parsed result when the route has a
 	 * `body` schema.
 	 * @param ip The client IP, `null` when unknown.
-	 * @param raw The underlying request. Its body is consumed once `body` is parsed.
+	 * @param raw The underlying request, left unread. `body` is parsed from a copy.
 	 */
 	constructor(
 		public readonly path: string,

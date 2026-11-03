@@ -75,6 +75,22 @@ Deno.test("query and params have no prototype", async () => {
 	assertEquals(await (await call(server, "/a")).json(), { query: "undefined", params: "undefined" });
 });
 
+Deno.test("req.raw stays the original request with its body unread", async () => {
+	let seen: Request | undefined;
+	const server = new HttpServer().post("/", async (req, res) => {
+		seen = req.raw;
+		return res.json({ body: req.body, used: req.raw.bodyUsed, text: await req.raw.text() });
+	});
+
+	const request = new Request("http://localhost/", {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: '{"a":1}',
+	});
+	assertEquals(await (await server.fetch(request)).json(), { body: { a: 1 }, used: false, text: '{"a":1}' });
+	assertEquals(seen, request);
+});
+
 Deno.test("cookies are parsed from the Cookie header", async () => {
 	const server = new HttpServer().get("/", (req, res) => res.json({ cookies: req.cookies }));
 

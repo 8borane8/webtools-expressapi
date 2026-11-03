@@ -128,7 +128,7 @@ export class HttpServer extends Router {
 
 		if (req.method !== HttpMethods.GET && req.method !== "HEAD") {
 			try {
-				req.body = await parseBody(req.raw);
+				req.body = await parseBody(req.raw.clone());
 			} catch {
 				return res.status(400).json({
 					success: false,
